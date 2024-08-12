@@ -32,17 +32,13 @@ def downsample(group, interval):
 
     :returns: A downsampled DataFrame.
     """
-    group = group.drop(columns=['series_id', 'algo_family_id'])
 
-    downsampled_group = group.groupby(group['time_step'] // interval).agg({
+    return group.groupby(group['time_step'] // interval).agg({
         'test_data': 'mean',
-        'time_step': 'first'
+        'time_step': 'first',
+        'series_id': 'first',
+        'algo_family_id': 'first'
     })
-
-    downsampled_group['algo_family_id'] = group['algo_family_id'].iloc[0]
-    downsampled_group['series_id'] = group['series_id'].iloc[0]
-
-    return downsampled_group
 
 
 def load_and_preprocess_data(tsad_results_path, time_series_metadata_path):
