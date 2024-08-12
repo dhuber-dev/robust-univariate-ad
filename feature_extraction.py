@@ -5,14 +5,12 @@ from tqdm import tqdm
 import argparse
 
 
-def get_time_series(data_path: str | float) -> list | None:
+def get_time_series(data_path):
     """Load time series data from a given path.
 
     :param data_path: The path to the CSV file containing time series data or NaN.
-    :type data_path: str or float
 
     :returns: A list of time series values or None if the path is NaN.
-    :rtype: list or None
     """
     if isinstance(data_path, str):
         df_ts = pd.read_csv('datasets/GutenTAG/' + data_path, usecols=['value-0'])['value-0']
@@ -26,35 +24,34 @@ def get_time_series(data_path: str | float) -> list | None:
         raise TypeError("data_path must be a string or NaN.")
 
 
-def downsample(group, interval: int) -> pd.DataFrame:
+def downsample(group, interval):
     """Downsample the time series data by a given interval.
 
     :param group: A DataFrame group representing a single time series.
-    :type group: pd.DataFrame
     :param interval: The interval at which to downsample the data.
-    :type interval: int
 
     :returns: A downsampled DataFrame.
-    :rtype: pd.DataFrame
     """
-    return group.groupby(group['time_step'] // interval).agg({
+    group = group.drop(columns=['series_id', 'algo_family_id'])
+
+    downsampled_group = group.groupby(group['time_step'] // interval).agg({
         'test_data': 'mean',
-        'time_step': 'first',  # Keeps the first time_step in each interval
-        'algo_family_id': 'first',  # Keeps the algo_family_id unchanged
-        'series_id': 'first'  # Keeps the series_id unchanged
+        'time_step': 'first'
     })
 
+    downsampled_group['algo_family_id'] = group['algo_family_id'].iloc[0]
+    downsampled_group['series_id'] = group['series_id'].iloc[0]
 
-def load_and_preprocess_data(tsad_results_path: str, time_series_metadata_path: str) -> pd.DataFrame:
+    return downsampled_group
+
+
+def load_and_preprocess_data(tsad_results_path, time_series_metadata_path):
     """Load and preprocess the data from specified file paths.
 
     :param tsad_results_path: Path to the TSAD evaluation results CSV file.
-    :type tsad_results_path: str
     :param time_series_metadata_path: Path to the time series metadata CSV file.
-    :type time_series_metadata_path: str
 
     :returns: A DataFrame ready for downsampling and feature extraction.
-    :rtype: pd.DataFrame
     """
     eval_results = pd.read_csv(tsad_results_path)
     time_series_data = pd.read_csv(time_series_metadata_path)
@@ -70,7 +67,7 @@ def load_and_preprocess_data(tsad_results_path: str, time_series_metadata_path: 
 
     df = eval_results_agg.loc[is_correct_collection & is_unique_anomaly & is_unsupervised]
 
-    tqdm.pandas()
+    tqdm.pandas(desc="Loading time series data")
     df['test_data'] = df['test_path'].progress_apply(get_time_series).values
 
     if df.test_data.isnull().any():
@@ -92,17 +89,13 @@ def load_and_preprocess_data(tsad_results_path: str, time_series_metadata_path: 
     return df_feature_extraction
 
 
-def main(tsad_results_path: str, time_series_metadata_path: str, downsampling_interval: int, output_path: str) -> None:
+def main(tsad_results_path, time_series_metadata_path, downsampling_interval, output_path):
     """Main function to load data, downsample, and extract features.
 
     :param tsad_results_path: Path to the TSAD evaluation results CSV file.
-    :type tsad_results_path: str
     :param time_series_metadata_path: Path to the time series metadata CSV file.
-    :type time_series_metadata_path: str
     :param downsampling_interval: Interval for downsampling the time series.
-    :type downsampling_interval: int
     :param output_path: Path to save the extracted features CSV file.
-    :type output_path: str
 
     :returns: None. The extracted features are saved to the specified output path.
     """
@@ -110,8 +103,9 @@ def main(tsad_results_path: str, time_series_metadata_path: str, downsampling_in
 
     df_feature_extraction['series_id'] = (df_feature_extraction['time_step'] == 0).cumsum()
 
-    df_downsampled = df_feature_extraction.groupby(['series_id']).apply(downsample,
-                                                                        interval=downsampling_interval).reset_index(
+    tqdm.pandas(desc="Downsampling time series data")
+    df_downsampled = df_feature_extraction.groupby(['series_id']).progress_apply(downsample,
+                                                                                 interval=downsampling_interval).reset_index(
         drop=True)
 
     extracted_features = extract_features(df_downsampled, column_id='algo_family_id', column_sort='time_step')
