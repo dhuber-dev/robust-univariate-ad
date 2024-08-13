@@ -138,7 +138,10 @@ def main(tsad_results_path, time_series_metadata_path, downsampling_interval, re
     if reduced_sample_size != 0:
         df_feature_extraction = reduce_sample_size(df_feature_extraction, reduced_sample_size)
 
-    extracted_features = extract_features(df_feature_extraction, column_id='algo_family_id', column_sort='time_step', n_jobs=-1)
+    extracted_features = extract_features(df_feature_extraction,
+                                          column_id='algo_family_id',
+                                          column_sort='time_step',
+                                          n_jobs=0)
     extracted_features.to_csv(output_path)
 
 
