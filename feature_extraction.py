@@ -96,17 +96,18 @@ def load_and_preprocess_data(tsad_results_path, time_series_metadata_path):
     df = eval_results_agg.loc[is_correct_collection & is_unique_anomaly & is_unsupervised]
 
     tqdm.pandas(desc="Loading time series data")
-    df.loc[:, 'test_data'] = df['test_path'].progress_apply(get_time_series).values
+    df_test_data = df.copy()
+    df_test_data.loc[:, 'test_data'] = df_test_data['test_path'].progress_apply(get_time_series).values
 
-    if df.test_data.isnull().any():
+    if df_test_data.test_data.isnull().any():
         raise ValueError('Could not load data for all instances.')
 
-    algo_family_ids = pd.factorize(df['algo_family'])
-    time_steps = df['test_data'].apply(lambda x: list(range(len(x))))
+    algo_family_ids = pd.factorize(df_test_data['algo_family'])
+    time_steps = df_test_data['test_data'].apply(lambda x: list(range(len(x))))
 
     df_feature_extraction = pd.DataFrame({
         'algo_family_id': algo_family_ids[0],
-        'test_data': df['test_data'],
+        'test_data': df_test_data['test_data'],
         'time_step': time_steps
     })
 
