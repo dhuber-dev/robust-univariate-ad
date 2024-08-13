@@ -1,5 +1,5 @@
 import pandas as pd
-from tsfresh.feature_extraction import extract_features
+from tsfresh.feature_extraction import extract_features, MinimalFCParameters
 from tsfresh import extract_relevant_features
 import math
 from tqdm import tqdm
@@ -96,7 +96,7 @@ def load_and_preprocess_data(tsad_results_path, time_series_metadata_path):
     df = eval_results_agg.loc[is_correct_collection & is_unique_anomaly & is_unsupervised]
 
     tqdm.pandas(desc="Loading time series data")
-    df['test_data'] = df['test_path'].progress_apply(get_time_series).values
+    df.loc[:, 'test_data'] = df['test_path'].progress_apply(get_time_series).values
 
     if df.test_data.isnull().any():
         raise ValueError('Could not load data for all instances.')
@@ -144,7 +144,6 @@ def main(tsad_results_path, time_series_metadata_path, downsampling_interval, re
     extracted_features = extract_features(df_feature_extraction,
                                           column_id='algo_family_id',
                                           column_sort='time_step',
-                                          default_fc_parameters={},
                                           n_jobs=0)
     extracted_features.to_csv(output_path)
 
