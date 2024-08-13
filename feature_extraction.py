@@ -1,5 +1,6 @@
 import pandas as pd
-from tsfresh.feature_extraction import extract_features, EfficientFCParameters
+from tsfresh.feature_extraction import extract_features
+from tsfresh import extract_relevant_features
 import math
 from tqdm import tqdm
 import argparse
@@ -133,7 +134,9 @@ def main(tsad_results_path, time_series_metadata_path, downsampling_interval, re
     tqdm.pandas(desc="Downsampling time series data")
 
     if downsampling_interval != 0:
-        df_feature_extraction = df_feature_extraction.groupby(['series_id']).progress_apply(downsample,interval=downsampling_interval).reset_index(drop=True)
+        df_feature_extraction = df_feature_extraction.groupby(['series_id']).progress_apply(downsample,
+                                                                                            interval=downsampling_interval).reset_index(
+            drop=True)
 
     if reduced_sample_size != 0:
         df_feature_extraction = reduce_sample_size(df_feature_extraction, reduced_sample_size)
@@ -141,6 +144,7 @@ def main(tsad_results_path, time_series_metadata_path, downsampling_interval, re
     extracted_features = extract_features(df_feature_extraction,
                                           column_id='algo_family_id',
                                           column_sort='time_step',
+                                          default_fc_parameters={},
                                           n_jobs=0)
     extracted_features.to_csv(output_path)
 
@@ -160,4 +164,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(args.tsad_results, args.time_series_metadata, args.downsampling_interval, args.reduced_sample_size, args.output_path)
+    main(args.tsad_results, args.time_series_metadata, args.downsampling_interval, args.reduced_sample_size,
+         args.output_path)
