@@ -144,7 +144,8 @@ def main(tsad_results_path, time_series_metadata_path, downsampling_interval, re
 
     extracted_features = extract_features(df_feature_extraction,
                                           column_id='algo_family_id',
-                                          column_sort='time_step')
+                                          column_sort='time_step',
+                                          n_jobs=0)
     extracted_features.to_csv(output_path)
 
 
