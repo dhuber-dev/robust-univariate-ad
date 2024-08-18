@@ -119,7 +119,7 @@ def load_and_preprocess_data(tsad_results_path, time_series_metadata_path):
     return df_feature_extraction.reset_index(drop=True)
 
 
-def main(tsad_results_path, time_series_metadata_path, downsampling_interval, reduced_sample_size, output_path):
+def main(tsad_results_path, time_series_metadata_path, downsampling_interval, reduced_sample_size, n_jobs, output_path):
     """Main function to load data, downsample, and extract features.
 
     :param tsad_results_path: Path to the TSAD evaluation results CSV file.
@@ -146,7 +146,7 @@ def main(tsad_results_path, time_series_metadata_path, downsampling_interval, re
     extracted_features = extract_features(df_feature_extraction,
                                           column_id='algo_family_id',
                                           column_sort='time_step',
-                                          n_jobs=0)
+                                          n_jobs=n_jobs)
     extracted_features.to_csv(output_path)
 
 
@@ -160,10 +160,12 @@ if __name__ == "__main__":
                         help="Interval for downsampling the time series.")
     parser.add_argument("--reduced-sample-size", type=int, default=0,
                         help="Number of samples to keep for each algorithm family.")
+    parser.add_argument("--n-jobs", type=int, default=0,
+                        help="Number of cores to use.")
     parser.add_argument("--output-path", type=str, default='datasets/features.csv',
                         help="Path to save the extracted features CSV file.")
 
     args = parser.parse_args()
 
     main(args.tsad_results, args.time_series_metadata, args.downsampling_interval, args.reduced_sample_size,
-         args.output_path)
+         args.n_jobs, args.output_path)
