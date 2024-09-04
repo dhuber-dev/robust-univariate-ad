@@ -5,6 +5,8 @@ import math
 from tqdm import tqdm
 import argparse
 
+category_to_extract_features_for = 'anomaly_kind'  # "algo_family" or "anomaly_kind"
+
 
 def get_time_series(data_path):
     """Load time series data from a given path."""
@@ -26,18 +28,18 @@ def downsample(group, interval):
         'test_data': 'mean',
         'time_step': 'first',
         'series_id': 'first',
-        'algo_family_id': 'first'
+        category_to_extract_features_for + '_id': 'first'
     })
 
 
 def reduce_sample_size(df_samples: pd.DataFrame, num_samples_to_keep: int):
     """Reduces the number of samples in a DataFrame for each algorithm family."""
-    df_samples['series_id_change'] = df_samples.groupby('algo_family_id')['series_id'].transform(
+    df_samples['series_id_change'] = df_samples.groupby(category_to_extract_features_for + '_id')['series_id'].transform(
         lambda x: x != x.shift())
-    df_samples['sequential_series_id'] = df_samples.groupby('algo_family_id')['series_id_change'].cumsum()
+    df_samples['sequential_series_id'] = df_samples.groupby(category_to_extract_features_for + '_id')['series_id_change'].cumsum()
     df_samples.drop(columns='series_id_change', inplace=True)
 
-    if (df_samples.groupby('algo_family_id')['sequential_series_id'].max() < num_samples_to_keep).any():
+    if (df_samples.groupby(category_to_extract_features_for + '_id')['sequential_series_id'].max() < num_samples_to_keep).any():
         raise ValueError(
             fr'The data does not contain enough samples for all algorithm families to reduce the sample size to {num_samples_to_keep} per family. Choose a smaller number of samples to keep.')
     else:
@@ -60,6 +62,9 @@ def load_and_preprocess_data(tsad_results_path, time_series_metadata_path):
 
     df = eval_results_agg.loc[is_correct_collection & is_unique_anomaly & is_unsupervised]
 
+    if is_unique_anomaly.any():
+        df.loc[:, 'anomaly_kind'] = df['anomaly_kind'].apply(lambda x: eval(x)[0])  # Remove list type of column "anomaly_kind"
+
     tqdm.pandas(desc="Loading time series data")
     df_test_data = df.copy()
     df_test_data.loc[:, 'test_data'] = df_test_data['test_path'].progress_apply(get_time_series).values
@@ -67,11 +72,13 @@ def load_and_preprocess_data(tsad_results_path, time_series_metadata_path):
     if df_test_data.test_data.isnull().any():
         raise ValueError('Could not load data for all instances.')
 
-    algo_family_ids = pd.factorize(df_test_data['algo_family'])
+
+    feature_category_ids = pd.factorize(df_test_data[category_to_extract_features_for])
+    print('Created indices for categories:\n', pd.DataFrame(feature_category_ids[1], columns=['category_name']))
     time_steps = df_test_data['test_data'].apply(lambda x: list(range(len(x))))
 
     df_feature_extraction = pd.DataFrame({
-        'algo_family_id': algo_family_ids[0],
+        category_to_extract_features_for + '_id': feature_category_ids[0],
         'test_data': df_test_data['test_data'],
         'time_step': time_steps
     })
@@ -115,7 +122,7 @@ def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, 
         fc_parameters = remove_expensive_features(fc_parameters)
 
     extracted_features = extract_features(df_feature_extraction,
-                                          column_id='algo_family_id',
+                                          column_id=category_to_extract_features_for + '_id',
                                           column_sort='time_step',
                                           default_fc_parameters=fc_parameters,
                                           n_jobs=n_jobs)
