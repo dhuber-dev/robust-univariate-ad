@@ -1,5 +1,5 @@
 import pandas as pd
-from tsfresh.feature_extraction import extract_features, MinimalFCParameters
+from tsfresh.feature_extraction import extract_features, ComprehensiveFCParameters
 from tsfresh import extract_relevant_features
 import math
 from tqdm import tqdm
@@ -142,7 +142,6 @@ def main(tsad_results_path, time_series_metadata_path, downsampling_interval, re
     if reduced_sample_size != 0:
         df_feature_extraction = reduce_sample_size(df_feature_extraction, reduced_sample_size)
 
-    df_feature_extraction = df_feature_extraction.drop(['series_id', 'sequential_series_id'], axis=1)
     extracted_features = extract_features(df_feature_extraction,
                                           column_id='algo_family_id',
                                           column_sort='time_step',
