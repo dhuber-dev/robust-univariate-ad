@@ -135,16 +135,24 @@ def main(tsad_results_path, time_series_metadata_path, downsampling_interval, re
     tqdm.pandas(desc="Downsampling time series data")
 
     if downsampling_interval != 0:
-        df_feature_extraction = df_feature_extraction.groupby(['series_id']).progress_apply(downsample,
-                                                                                            interval=downsampling_interval).reset_index(
-            drop=True)
+        df_feature_extraction = df_feature_extraction.groupby(['series_id']).progress_apply(downsample, interval=downsampling_interval).reset_index(drop=True)
 
     if reduced_sample_size != 0:
         df_feature_extraction = reduce_sample_size(df_feature_extraction, reduced_sample_size)
+        df_feature_extraction = df_feature_extraction.drop(['series_id', 'sequential_series_id'], axis=1)
+    else:
+        df_feature_extraction = df_feature_extraction.drop(['series_id'], axis=1)
+
+    # Remove computationally expensive features
+    fc_parameters = ComprehensiveFCParameters()
+    fc_parameters.pop('sample_entropy', None)
+    fc_parameters.pop('friedrich_coefficients', None)
+    fc_parameters.pop('approximate_entropy', None)
 
     extracted_features = extract_features(df_feature_extraction,
                                           column_id='algo_family_id',
                                           column_sort='time_step',
+                                          default_fc_parameters=fc_parameters,
                                           n_jobs=n_jobs)
     extracted_features.to_csv(output_path)
 
