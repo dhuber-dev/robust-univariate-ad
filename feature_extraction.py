@@ -15,10 +15,14 @@ Date: 2024-09-04
 """
 
 import pandas as pd
-from tsfresh.feature_extraction import extract_features, ComprehensiveFCParameters
 import math
 from tqdm import tqdm
 import argparse
+import dask.dataframe as dd
+from tsfresh import extract_features
+from tsfresh.utilities.dataframe_functions import impute
+from tsfresh.feature_extraction import ComprehensiveFCParameters
+from tqdm.dask import TqdmCallback
 
 
 def get_time_series(data_path):
@@ -159,7 +163,7 @@ def remove_expensive_features(fc_parameters: dict | ComprehensiveFCParameters) -
 
 def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, limit_features: bool,
                               category_to_extract_features_for: str, output_path: str):
-    """Extract features from the time series data and save to a CSV file.
+    """Extract features from the time series data using Dask and save to a CSV file.
 
     :param df_feature_extraction: A DataFrame containing the preprocessed time series data.
     :param n_jobs: An integer specifying the number of jobs (cores) to use for feature extraction.
@@ -167,7 +171,8 @@ def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, 
     :param category_to_extract_features_for: A string indicating the category for feature extraction.
     :param output_path: A string specifying the path to save the extracted features CSV file.
     """
-    tqdm.pandas(desc="Extracting features")
+    # Convert the pandas DataFrame to a Dask DataFrame
+    ddf = dd.from_pandas(df_feature_extraction, npartitions=n_jobs)
 
     # Get the feature extraction parameters
     fc_parameters = ComprehensiveFCParameters()
@@ -175,11 +180,18 @@ def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, 
     if limit_features:
         fc_parameters = remove_expensive_features(fc_parameters)
 
-    extracted_features = extract_features(df_feature_extraction,
-                                          column_id=category_to_extract_features_for + '_id',
-                                          column_sort='time_step',
-                                          default_fc_parameters=fc_parameters,
-                                          n_jobs=n_jobs)
+    # Use Dask's parallel computation capabilities
+    with TqdmCallback(desc="Extracting features with Dask"):
+        extracted_features = extract_features(ddf.compute(),
+                                              column_id=category_to_extract_features_for + '_id',
+                                              column_sort='time_step',
+                                              default_fc_parameters=fc_parameters,
+                                              n_jobs=n_jobs)
+
+    # Impute the missing values if necessary
+    extracted_features = impute(extracted_features)
+
+    # Save the extracted features to a CSV file
     extracted_features.to_csv(output_path)
 
 
