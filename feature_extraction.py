@@ -146,9 +146,9 @@ def remove_expensive_features(fc_parameters: dict | ComprehensiveFCParameters) -
     """
     len_original = len(fc_parameters)
     features_to_remove = [
-        'sample_entropy',
-        'friedrich_coefficients',
         'approximate_entropy'
+        'change_quantiles',
+        'sample_entropy',
     ]
     for feature in features_to_remove:
         fc_parameters.pop(feature, None)
