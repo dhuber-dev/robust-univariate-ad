@@ -85,7 +85,7 @@ def reduce_sample_size(df_samples: pd.DataFrame, num_samples_to_keep: int, categ
         return df_samples.loc[df_samples.sequential_series_id <= num_samples_to_keep]
 
 
-def load_and_preprocess_data(tsad_results_path, time_series_metadata_path, category_to_extract_features_for):
+def load_and_preprocess_data(tsad_results_path, time_series_metadata_path, category_to_extract_features_for, limit_categories):
     """Load and preprocess the data from specified file paths.
 
     :param tsad_results_path: A string path to the TSAD evaluation results CSV file.
@@ -111,6 +111,10 @@ def load_and_preprocess_data(tsad_results_path, time_series_metadata_path, categ
     if is_unique_anomaly.any():
         df.loc[:, 'anomaly_kind'] = df['anomaly_kind'].apply(
             lambda x: eval(x)[0])  # Remove list type of column "anomaly_kind"
+
+    if limit_categories:  # List of categories to limit to is not empty
+        is_to_include = df[category_to_extract_features_for].apply(lambda x: x in limit_categories)
+        df = df.loc[is_to_include]
 
     tqdm.pandas(desc="Loading time series data")
     df_test_data = df.copy()
@@ -202,10 +206,11 @@ def main(tsad_results_path,
          n_jobs,
          limit_features,
          category_to_extract_features_for,
+         limit_categories,
          output_path):
     """Main function to load data, downsample, and extract features."""
     df_feature_extraction = load_and_preprocess_data(tsad_results_path, time_series_metadata_path,
-                                                     category_to_extract_features_for)
+                                                     category_to_extract_features_for, limit_categories)
 
     tqdm.pandas(desc="Downsampling time series data")
 
@@ -242,10 +247,12 @@ if __name__ == "__main__":
                         help="Remove computationally expensive features to boost extraction/ if resources limited.")
     parser.add_argument("--category", type=str, required=True,
                         help='Category to extract features for ("algo_family" or "anomaly_kind").')
+    parser.add_argument("--limit-categories", type=str, default=[],
+                        help='Only perform feature extraction on a subset of categories.')
     parser.add_argument("--output-path", type=str, default='datasets/features.csv',
                         help="Path to save the extracted features CSV file.")
 
     args = parser.parse_args()
 
     main(args.tsad_results, args.time_series_metadata, args.downsampling_interval, args.reduced_sample_size,
-         args.n_jobs, args.limit_features, args.category, args.output_path)
+         args.n_jobs, args.limit_features, args.category, args.limit_categories, args.output_path)
