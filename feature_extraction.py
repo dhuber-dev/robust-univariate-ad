@@ -141,10 +141,10 @@ def load_and_preprocess_data(tsad_results_path, time_series_metadata_path, categ
     return df_feature_extraction.reset_index(drop=True)
 
 
-def remove_expensive_features(fc_parameters: dict | ComprehensiveFCParameters) -> dict:
+def remove_expensive_features(fc_parameters: list | ComprehensiveFCParameters) -> list:
     """Create and return feature extraction parameters with computationally expensive features removed.
 
-    :param fc_parameters: A dictionary or ComprehensiveFCParameters object containing feature extraction parameters.
+    :param fc_parameters: A list or ComprehensiveFCParameters object containing feature extraction parameters.
 
     :returns: A dictionary of feature extraction parameters with expensive features removed.
     """
@@ -165,13 +165,13 @@ def remove_expensive_features(fc_parameters: dict | ComprehensiveFCParameters) -
     return fc_parameters
 
 
-def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, limit_features: bool,
+def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, limit_features: str,
                               category_to_extract_features_for: str, output_path: str):
     """Extract features from the time series data using Dask and save to a CSV file.
 
     :param df_feature_extraction: A DataFrame containing the preprocessed time series data.
     :param n_jobs: An integer specifying the number of jobs (cores) to use for feature extraction.
-    :param limit_features: A boolean indicating whether to remove computationally expensive features.
+    :param limit_features: A list indicating set of features to extract.
     :param category_to_extract_features_for: A string indicating the category for feature extraction.
     :param output_path: A string specifying the path to save the extracted features CSV file.
     """
@@ -179,10 +179,7 @@ def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, 
     ddf = dd.from_pandas(df_feature_extraction, npartitions=n_jobs)
 
     # Get the feature extraction parameters
-    fc_parameters = ComprehensiveFCParameters()
-
-    if limit_features:
-        fc_parameters = remove_expensive_features(fc_parameters)
+    fc_parameters = eval(limit_features) if (len(eval(limit_features)) > 0) else remove_expensive_features(ComprehensiveFCParameters())
 
     # Use Dask's parallel computation capabilities
     with TqdmCallback(desc="Extracting features with Dask"):
@@ -243,9 +240,9 @@ if __name__ == "__main__":
                         help="Number of samples to keep for each algorithm family.")
     parser.add_argument("--n-jobs", type=int, default=0,
                         help="Number of cores to use.")
-    parser.add_argument("--limit-features", type=bool, default=False,
-                        help="Remove computationally expensive features to boost extraction/ if resources limited.")
-    parser.add_argument("--category", type=str, required=True,
+    parser.add_argument("--limit-features", type=str, default=[],
+                        help="Only use predefined subset of features to boost extraction if resources limited.")
+    parser.add_argument("--category", type=str, default="algo_family",
                         help='Category to extract features for ("algo_family" or "anomaly_kind").')
     parser.add_argument("--limit-categories", type=str, default=[],
                         help='Only perform feature extraction on a subset of categories.')
