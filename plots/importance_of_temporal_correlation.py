@@ -49,7 +49,7 @@ anomaly_color = 'red'
 # Styling parameters for scientific papers
 rcParams['font.family'] = 'serif'
 rcParams['font.size'] = 12
-rcParams['figure.figsize'] = (8, 4)
+rcParams['figure.figsize'] = (4, 4)
 rcParams['savefig.dpi'] = 300
 rcParams['figure.dpi'] = 300
 
@@ -83,7 +83,6 @@ plt.close()
 
 # ------------- Distribution chart -------------
 plt.figure()
-plt.subplot(1, 2, 2)
 
 dist = sns.histplot(
     data=df,
@@ -100,7 +99,6 @@ plt.xlabel('Observation $X_t$', fontsize=12)
 plt.ylabel('Frequency', fontsize=12)
 # plt.title("Distribution", fontsize=14)
 dist.legend_.set_title(None)
-plt.grid(True, linestyle='--', linewidth=0.5)
 plt.tight_layout()
 plt.savefig('printed/distribution_chart_with_anomaly.png')
 plt.close()
