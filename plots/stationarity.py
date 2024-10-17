@@ -28,7 +28,7 @@ for i in range(1, len(t)):
 # Styling parameters for scientific papers
 rcParams['font.family'] = 'serif'
 rcParams['font.size'] = 12
-rcParams['figure.figsize'] = (8, 4)
+rcParams['figure.figsize'] = (4, 4)
 rcParams['savefig.dpi'] = 300
 rcParams['figure.dpi'] = 300
 
