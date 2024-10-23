@@ -179,7 +179,12 @@ def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, 
     ddf = dd.from_pandas(df_feature_extraction, npartitions=n_jobs)
 
     # Get the feature extraction parameters
-    fc_parameters = eval(limit_features) if (len(eval(limit_features)) > 0) else remove_expensive_features(ComprehensiveFCParameters())
+    features = ComprehensiveFCParameters()
+    limit_features = eval(limit_features)
+    if len(limit_features) > 0:
+        fc_parameters = {key: None for key in limit_features}
+    else:
+        fc_parameters = remove_expensive_features(features)
 
     # Use Dask's parallel computation capabilities
     with TqdmCallback(desc="Extracting features with Dask"):
