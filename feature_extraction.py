@@ -13,6 +13,7 @@ Usage:
 Author: Dennis Huber
 Date: 2024-09-04
 """
+import ast
 
 import pandas as pd
 import math
@@ -165,6 +166,40 @@ def remove_expensive_features(fc_parameters: list | ComprehensiveFCParameters) -
     return fc_parameters
 
 
+def extract_features_from_string(input_string: str, fc_parameters: dict) -> dict:
+    """Extract the original feature dictionary from tsfresh string format.
+
+    tsfresh puts the features and their attributes into strings and seperates them by "__". We use this format to
+    extract the original feature dict for extraction. This allows us to use the output features of tsfresh as the input
+    set of features to extract them again with tsfresh.
+
+    :param features_in_tsfresh_str_format: A list or ComprehensiveFCParameters in output string format of tsfresh.
+
+    :returns: A dictionary of feature extraction parameters.
+    """
+    substrings = input_string.split('__')
+    # tsfresh adds substring "test_data__" as first (substrings[0]), which we don't need
+    feature = substrings[1]
+
+    if len(substrings) > 2:
+        attributes = substrings[2:]
+
+        attributes_dict = dict()
+        for attr in attributes:
+            (attr_name, attr_value) = attr.split('_')
+            try:
+                attributes_dict[attr_name] = ast.literal_eval(attr_value)
+            except (ValueError, SyntaxError):
+                attributes_dict[attr_name] = attr_value
+
+        fc_parameters.setdefault(feature, []).append(attributes_dict)
+
+    else:
+        fc_parameters[feature] = None
+
+    return fc_parameters
+
+
 def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, limit_features: str,
                               category_to_extract_features_for: str, output_path: str):
     """Extract features from the time series data using Dask and save to a CSV file.
@@ -179,12 +214,16 @@ def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, 
     ddf = dd.from_pandas(df_feature_extraction, npartitions=n_jobs)
 
     # Get the feature extraction parameters
-    features = ComprehensiveFCParameters()
     limit_features = eval(limit_features)
+
     if len(limit_features) > 0:
-        fc_parameters = {key: None for key in limit_features}
+        fc_parameters = dict()
+        for f in limit_features:
+            fc_parameters = extract_features_from_string(f, fc_parameters)
+
     else:
-        fc_parameters = remove_expensive_features(features)
+        # Extract all
+        fc_parameters = ComprehensiveFCParameters()
 
     # Use Dask's parallel computation capabilities
     with TqdmCallback(desc="Extracting features with Dask"):
