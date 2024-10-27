@@ -217,9 +217,14 @@ def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, 
     limit_features = eval(limit_features)
 
     if len(limit_features) > 0:
-        fc_parameters = dict()
-        for f in limit_features:
-            fc_parameters = extract_features_from_string(f, fc_parameters)
+        if "test_data__" in limit_features[0]:
+            # is from output
+            fc_parameters = dict()
+            for f in limit_features:
+                fc_parameters = extract_features_from_string(f, fc_parameters)
+        else:
+            # User specifies feature names directly
+            fc_parameters = {k: ComprehensiveFCParameters()[k] for k in limit_features}
 
     else:
         # Extract all
