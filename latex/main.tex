@@ -1,0 +1,182 @@
+\NeedsTeXFormat{LaTeX2e}
+\documentclass[a4paper,12pt,
+headsepline,           % Line between header and text
+oneside,               % Single-sided
+numbers=noenddot,      % No dots after chapter numbers
+bibtotoc,              % Include bibliography in table of contents
+BCOR15mm               % Binding correction
+%,draft
+]{scrbook}
+\KOMAoptions{DIV=last} % Recalculate type area after loading package helvet
+
+\pagestyle{headings}
+\usepackage{blindtext}
+
+% Helvetica as default font
+\usepackage[scaled]{helvet}
+\renewcommand{\familydefault}{\sfdefault} 
+
+\usepackage{graphicx}
+\usepackage[disable]{todonotes}
+\usepackage{acronym}
+\usepackage{orcidlink}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{multirow}
+\usepackage{booktabs}
+
+% Bibliography with BibLaTeX
+\usepackage[babel,german=quotes]{csquotes}
+\usepackage[backend=bibtex8]{biblatex}
+\bibliography{bibliography}
+
+% Alternative with package option backend=biber and \addbibresource
+% \usepackage[backend=biber]{biblatex}
+% \addbibresource{bibliography.bib}
+
+% For tables with fixed total width and variable column width
+\usepackage{tabularx} 
+
+% Special font styles
+\usepackage{url}              % \url{http://...} in typewriter font
+\usepackage{color}            % for setting colored text
+
+\usepackage{amssymb, amsmath} % Packages for math environments and symbols
+
+\usepackage{setspace}         % Package for various spacings, e.g. line spacing
+%\onehalfspacing              % Only if required; it's quite large!!
+\setlength{\parindent}{0pt}   % No indentation of the first line of paragraphs
+\setlength{\parskip}{1.4ex plus 0.35ex minus 0.3ex} % Paragraph spacing, slightly variable
+
+% Depth up to which headings are included in the table of contents
+\setcounter{tocdepth}{3}      % Standard
+
+% Examples of source code
+\usepackage{listings}
+\lstset{language=Java,
+  showstringspaces=false,
+  frame=single,
+  numbers=left,
+  basicstyle=\ttfamily,
+  numberstyle=\tiny}
+
+% Insert names etc. here
+\newcommand{\fullname}{Dennis Huber}
+\newcommand{\email}{dennis.huber@uni-ulm.de}
+\newcommand{\titel}{Towards Robust Anomaly Detection in Univariate Time Series: A Multi-Algorithm Approach}
+\newcommand{\jahr}{2024}
+\newcommand{\matnr}{1164647}
+\newcommand{\gutachterA}{Prof.\,Dr.\,Dr.\,Daniel Alexander Braun}
+\newcommand{\gutachterB}{Prof.\,Dr.\,Friedhelm Schwenker}
+\newcommand{\betreuer}{Sebastian Gottwald}
+
+% Select the faculty here
+%\newcommand{\fakultaet}{---  Adjust in the source code! ---}
+\newcommand{\fakultaet}{Faculty of Engineering, Computer Science and Psychology}
+%\newcommand{\fakultaet}{Mathematics and\\Economics}
+%\newcommand{\fakultaet}{Medicine}
+%\newcommand{\fakultaet}{Natural Sciences}
+
+% Insert the institute here
+\newcommand{\institut}{Institute for Neural Information Processing}
+
+% Information that LaTeX writes into the PDF file
+\pdfinfo{
+  /Author (\fullname)
+  /Title (\titel)
+  /Producer     (pdfeTex 3.14159-1.30.6-2.2)
+  /Keywords ()
+}
+
+\usepackage{hyperref}
+\hypersetup{
+pdftitle=\titel,
+pdfauthor=\fullname,
+pdfsubject={Diploma Thesis},
+pdfproducer={pdfeTex 3.14159-1.30.6-2.2},
+colorlinks=false,
+pdfborder=0 0 0	% No box around links!
+}
+
+% Hyphenation rules
+\hyphenation{hy-phen-ation}
+
+\begin{document}
+\frontmatter
+
+% Title page
+\thispagestyle{empty}
+\begin{addmargin*}[4mm]{-10mm}
+
+\hfill
+\includegraphics[height=1.8cm]{images/logo_uulm_sw.png}\\[1em]
+
+{\footnotesize
+%{\bfseries Universität Ulm} \textbar ~89069 Ulm \textbar ~Germany
+\hspace*{115mm}\parbox[t]{35mm}{\bfseries 
+\fakultaet\\
+\mdseries \institut}\\[2cm]
+
+\parbox{140mm}{\bfseries \LARGE \titel}\\[2.5em]
+{\footnotesize Thesis submitted to the University of Ulm}\\[3em]
+
+{\footnotesize \bfseries Submitted by:}\\
+{\footnotesize \fullname\, \orcidlink{0009-0002-5723-9699}\\ \email}\\ \matnr\\[2em]
+{\footnotesize \bfseries Supervisors:}\\                     
+{\footnotesize \gutachterA\\ \gutachterB}\\[2em]
+{\footnotesize \bfseries Advisor:}\\ 
+{\footnotesize \betreuer}\\\\
+{\footnotesize \jahr}
+}
+\end{addmargin*}
+
+
+% Imprint
+\clearpage
+\thispagestyle{empty}
+{ \small
+  \flushleft
+  Version \today \\\vfill
+  \copyright~\jahr~\fullname\\[0.5em]
+% If you want to provide your work under a free license, you can include the next line in your code. Please note that you need the necessary rights for all content, including included illustrations! When publishing your dissertation, please ensure that the license text does not contradict the information in the metadata of the publication platform used. More information about the Creative Commons licenses can be found here: https://creativecommons.org/licenses/
+%This work is licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0) License. To view a copy of this license, visit \href{https://creativecommons.org/licenses/by/4.0/}{https://creativecommons.org/licenses/by/4.0/} or send a letter to Creative Commons, 543 Howard Street, 5th Floor, San Francisco, California, 94105, USA. \\
+  Typesetting: PDF-\LaTeXe
+}
+
+% From here, slightly larger line spacing
+\setstretch{1.2}
+
+\tableofcontents
+
+\mainmatter
+\input{chapters/01_introduction}
+\input{chapters/02_literature_review}
+\input{chapters/03_methodology}
+\input{chapters/04_Identifying Best Performers}
+\input{chapters/05_Implementing an Expert System}
+\input{chapters/06_Results}
+\input{chapters/07_conclusion}
+
+% Include more chapters here
+
+\appendix
+% Include appendices here
+\input{chapters/A1_sources}
+
+\backmatter
+
+\printbibliography
+
+\clearpage
+\thispagestyle{empty}
+
+Name: \fullname \hfill Matriculation Number: \matnr \vspace{2cm}
+
+\minisec{Declaration}
+
+I declare that I have written this thesis independently and have not used any sources or aids other than those specified.\vspace{2cm}
+
+Ulm, \dotfill
+
+\hspace{10cm} {\footnotesize \fullname}
+\end{document}

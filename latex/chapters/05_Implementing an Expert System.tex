@@ -1,0 +1,29 @@
+\chapter{Implementing an Expert System}
+\label{ch:implementing_an_expert_system}
+% Implementation Steps
+1. Using GutenTAG for feature extraction
+
+1.1 Feature extraction per algo family
+
+1.1.1 Running tsfresh feature extraction on small subset of data (20 instances per algorithm family) to prefilter relevant features (relevant = correlation between feature and algo family AUC ROC). Argument that feature extraction is very computationally intensive "could not get it to work altough njobs npartitions", so had to drop some features (list)
+Christ et al. have shown that adjusting the list of calculated features changes the total runtime of feature extraction drastically. In addition, they deliver average runtime results for one time series with 1000 time steps for all used feature extraction methods \cite{tsfresh}. We follow these findings and eliminate the three feature extraction methods with an average runtime per time series $>1 s$ to boost calculation.
+tsfresh is very computationally expensive. A hurdle many researchers struggeled with. Couldn't get extraction of reduced feature set running on server for all samples ref Graph with sample size (memory error see txt file 86.6 TiB).
+200 samples also didn't work. Same error
+150 samples also didn't work. Same error
+Also tried to run each group (algo family) individually to reduce system load -> same error
+Trying to run features >0.4 correlation coeff
+
+1.1.2 Running feature extraction of prefiltered features on bigger dataset
+
+1.1.3 Analyze differences in features from small to bigger subset
+We reached consistency; now all features with correlation >0.4 for whole dataset
+
+1.1.4 Analyze correlation algo family to features per algo family
+
+1.2 Feature extraction per anomaly type (on num samples computed in above evaluation?)
+
+1.3 Feature extraction on all Datasets used in the eval paper
+
+%\section{Experiment Setup}
+% Beschreibung der Experimentanordnung und der technischen Details.
+

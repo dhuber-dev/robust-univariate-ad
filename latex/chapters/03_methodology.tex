@@ -1,0 +1,25 @@
+\chapter{Methodology}
+To address the research gap, we propose a comparison method centered around problem characteristics. We hypothesize that different types of anomalies effectively reflect distinct problem characteristics. By limiting our research to univariate, unsupervised and semi-supervised algorithms, we focus exclusively on structural differences specific to anomaly types. The ultimate goal is to identify structural advantages of algorithms and map them to suitable anomaly kinds. We attempt this by following a two-step process:
+\begin{enumerate}
+    \item Identify the best performing algorithm family for each anomaly kind and
+    \item analyze the the algorithms within the families for structural advantages.
+\end{enumerate}
+
+Building upon the findings, we aim to evaluate the value of these findings by proposing an \textit{expert system}. The system should automatically select an algorithm with favorable structures matching the given data characteristics. 
+
+% Dataset & Evaluation Metric
+In order to tackle the identification of best-performing algorithms on anomaly kinds, we use the synthetic GutenTAG dataset. This offers the opportunity to perform data analysis on time series that show unique anomaly kinds, which can not be expected from real world data.
+We use the performance results from the evaluation made by Schmidl et al. \cite{Schmidl2022}. As recommended by the authors, we focus on the \textit{Area Under the Receiver Operating Characteristics Curve (AUC-ROC)} as a performance measure. It provides a reliable, threshold-independent measure for comparing AD performance across algorithms and does not require a specific threshold.
+
+% Identifying best performers
+To determine the most effective algorithms for detecting specific types of anomalies, the performance results are preprocessed and augmented with time series data from GutenTAG. This augmentation enables the comparisons across algorithms based on individual anomaly types. 
+A following data analysis examines the distribution of algorithm families, along with the prevalence of each anomaly type to better interpret the final results. 
+Two hypotheses guide this step: the first stating that algorithm performance varies based on the anomaly type it detects, which is tested using the preprocessed dataset and AUC-ROC values. A two-way ANOVA is used to reveal significant effects based on both anomaly type and algorithm family. The second hypothesis aims to identify the top-performing families by anomaly type.
+Based on the findings per algorithm family, a more detailed, anomaly-specific analysis follows to identify beneficial algorithm structures.
+
+% Expert System
+By developing an expert system, we aim to evaluate the value of these findings. The development starts by calculating a random set of features using tsfresh \cite{tsfresh}. This set is then filtered, leaving features that correlate with the appearance of anomaly kinds. We use this as an indicate to estimate the most probable anomaly kind within the region of interest. 
+We start by extracting features based on algorithm families to see if the time series have characteristics that directly point to the best performing algorithm family.
+We further perform a feature extraction per anomaly kind. The idea is to identify time series characteristics using the feature set and map them to an anomaly kind. For instance, a trend feature yields a high value indicating a prominent trend component in the given time series. This would indicate the most probable anomaly, like a trend anomaly.
+We can then trigger the best-performing algorithm based on the mapping defined in the identification process. This system would should have a big performance benefit compared to simply running all algorithms for anomaly detection on the given time series. It further is assumed to outperform single algorithm setups, which struggle with the diversity of anomaly types.
+These hypothesis about the system are put to a test in a final evaluation. The goal is to compare the generalization capabilities of this setup with the results from Schmidl et al. and proof that the identified characteristics indeed excel on the identified anomaly types.
