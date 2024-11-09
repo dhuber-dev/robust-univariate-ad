@@ -223,7 +223,7 @@ def main(tsad_results_path,
     loaded_data = load_data(tsad_results_path, time_series_metadata_path,
                                       category_to_extract_features_for, limit_categories)
     df4extraction = explode_time_series(loaded_data)
-    extract_and_save_features(df4extraction, n_jobs=2, limit_features=limit_features, output_path='all_per_time_series.csv')
+    extract_and_save_features(df4extraction, n_jobs=2, limit_features=limit_features, output_path=output_path)
 
 
 if __name__ == "__main__":
