@@ -97,7 +97,7 @@ def load_data(tsad_results_path, time_series_metadata_path, category_to_extract_
     """
     eval_results = pd.read_csv(tsad_results_path)
     tqdm.pandas(desc="Loading datasets")
-    datasets_with_unique_anomalies = list(set(eval_results.loc[eval_results.unique_anomaly_type == True, 'dataset']))[:5]
+    datasets_with_unique_anomalies = set(eval_results.loc[eval_results.unique_anomaly_type == True, 'dataset'])
     all_paths = [f'datasets/GutenTAG/{ds}/{file}.csv' for file in ['test', 'train_anomaly', 'train_no_anomaly'] for ds in datasets_with_unique_anomalies]
     time_series_df = pd.DataFrame({'path': all_paths})
     time_series_df['data'] = time_series_df.path.progress_apply(pd.read_csv)
@@ -174,29 +174,11 @@ def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, 
     # Convert the pandas DataFrame to a Dask DataFrame
     ddf = dd.from_pandas(df_feature_extraction, npartitions=n_jobs)
 
-    # Get the feature extraction parameters
-    limit_features = eval(limit_features)
-
-    if len(limit_features) > 0:
-        if "test_data__" in limit_features[0]:
-            # is from output
-            fc_parameters = dict()
-            for f in limit_features:
-                fc_parameters = extract_features_from_string(f, fc_parameters)
-        else:
-            # User specifies feature names directly
-            fc_parameters = {k: ComprehensiveFCParameters()[k] for k in limit_features}
-
-    else:
-        # Extract all
-        fc_parameters = ComprehensiveFCParameters()
-
     # Use Dask's parallel computation capabilities
     with TqdmCallback(desc="Extracting features with Dask"):
         extracted_features = extract_features(ddf.compute(),
                                               column_id='id',
                                               column_sort='time_idx',
-                                              default_fc_parameters=fc_parameters,
                                               n_jobs=n_jobs)
 
     # Save the extracted features to a CSV file
