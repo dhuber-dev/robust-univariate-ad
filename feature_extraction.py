@@ -14,7 +14,7 @@ Author: Dennis Huber
 Date: 2024-09-04
 """
 import ast
-
+import csv
 import pandas as pd
 import math
 from tqdm import tqdm
@@ -22,7 +22,7 @@ import argparse
 import dask.dataframe as dd
 from tsfresh import extract_features
 from tsfresh.utilities.dataframe_functions import impute
-from tsfresh.feature_extraction import ComprehensiveFCParameters
+from tsfresh.feature_extraction import ComprehensiveFCParameters, MinimalFCParameters
 from tqdm.dask import TqdmCallback
 
 
@@ -86,7 +86,7 @@ def reduce_sample_size(df_samples: pd.DataFrame, num_samples_to_keep: int, categ
         return df_samples.loc[df_samples.sequential_series_id <= num_samples_to_keep]
 
 
-def load_and_preprocess_data(tsad_results_path, time_series_metadata_path, category_to_extract_features_for, limit_categories):
+def load_data(tsad_results_path, time_series_metadata_path, category_to_extract_features_for, limit_categories):
     """Load and preprocess the data from specified file paths.
 
     :param tsad_results_path: A string path to the TSAD evaluation results CSV file.
@@ -96,50 +96,13 @@ def load_and_preprocess_data(tsad_results_path, time_series_metadata_path, categ
     :returns: A DataFrame ready for feature extraction.
     """
     eval_results = pd.read_csv(tsad_results_path)
-    time_series_data = pd.read_csv(time_series_metadata_path)
+    tqdm.pandas(desc="Loading datasets")
+    datasets_with_unique_anomalies = list(set(eval_results.loc[eval_results.unique_anomaly_type == True, 'dataset']))[:5]
+    all_paths = [f'datasets/GutenTAG/{ds}/{file}.csv' for file in ['test', 'train_anomaly', 'train_no_anomaly'] for ds in datasets_with_unique_anomalies]
+    time_series_df = pd.DataFrame({'path': all_paths})
+    time_series_df['data'] = time_series_df.path.progress_apply(pd.read_csv)
 
-    eval_results['dataset_name'] = eval_results['dataset'] + '.' + eval_results['dataset_training_type'].apply(
-        str.lower)
-    data_paths = time_series_data.set_index('dataset_name').loc[:, 'test_path']
-    eval_results_agg = eval_results.join(data_paths, on='dataset_name')
-
-    is_correct_collection = eval_results_agg.collection == 'GutenTAG'
-    is_unique_anomaly = eval_results_agg['unique_anomaly_type']
-    is_unsupervised = eval_results_agg.dataset_training_type == 'UNSUPERVISED'
-
-    df = eval_results_agg.loc[is_correct_collection & is_unique_anomaly & is_unsupervised]
-
-    if is_unique_anomaly.any():
-        df.loc[:, 'anomaly_kind'] = df['anomaly_kind'].apply(
-            lambda x: eval(x)[0])  # Remove list type of column "anomaly_kind"
-
-    if limit_categories:  # List of categories to limit to is not empty
-        is_to_include = df[category_to_extract_features_for].apply(lambda x: x in limit_categories)
-        df = df.loc[is_to_include]
-
-    tqdm.pandas(desc="Loading time series data")
-    df_test_data = df.copy()
-    df_test_data.loc[:, 'test_data'] = df_test_data['test_path'].progress_apply(get_time_series).values
-
-    if df_test_data.test_data.isnull().any():
-        raise ValueError('Could not load data for all instances.')
-
-    feature_category_ids = pd.factorize(df_test_data[category_to_extract_features_for])
-    print('Created indices for categories:\n', pd.DataFrame(feature_category_ids[1], columns=['category_name']))
-    time_steps = df_test_data['test_data'].apply(lambda x: list(range(len(x))))
-
-    df_feature_extraction = pd.DataFrame({
-        category_to_extract_features_for + '_id': feature_category_ids[0],
-        'test_data': df_test_data['test_data'],
-        'time_step': time_steps
-    })
-
-    df_feature_extraction = df_feature_extraction.explode(['test_data', 'time_step'])
-    df_feature_extraction[['test_data', 'time_step']] = df_feature_extraction[['test_data', 'time_step']].apply(
-        pd.to_numeric, errors='coerce')
-    df_feature_extraction['series_id'] = (df_feature_extraction['time_step'] == 0).cumsum()
-
-    return df_feature_extraction.reset_index(drop=True)
+    return time_series_df
 
 
 def remove_expensive_features(fc_parameters: list | ComprehensiveFCParameters) -> list:
@@ -200,14 +163,12 @@ def extract_features_from_string(input_string: str, fc_parameters: dict) -> dict
     return fc_parameters
 
 
-def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, limit_features: str,
-                              category_to_extract_features_for: str, output_path: str):
+def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, limit_features: str, output_path: str):
     """Extract features from the time series data using Dask and save to a CSV file.
 
     :param df_feature_extraction: A DataFrame containing the preprocessed time series data.
     :param n_jobs: An integer specifying the number of jobs (cores) to use for feature extraction.
     :param limit_features: A list indicating set of features to extract.
-    :param category_to_extract_features_for: A string indicating the category for feature extraction.
     :param output_path: A string specifying the path to save the extracted features CSV file.
     """
     # Convert the pandas DataFrame to a Dask DataFrame
@@ -233,16 +194,20 @@ def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, 
     # Use Dask's parallel computation capabilities
     with TqdmCallback(desc="Extracting features with Dask"):
         extracted_features = extract_features(ddf.compute(),
-                                              column_id=category_to_extract_features_for + '_id',
-                                              column_sort='time_step',
+                                              column_id='id',
+                                              column_sort='time_idx',
                                               default_fc_parameters=fc_parameters,
                                               n_jobs=n_jobs)
 
-    # Impute the missing values if necessary
-    extracted_features = impute(extracted_features)
-
     # Save the extracted features to a CSV file
     extracted_features.to_csv(output_path)
+
+
+def explode_time_series(df2explode):
+    df2explode['time_idx'] = df2explode.data.apply(lambda x: x['timestamp'].tolist())
+    df2explode['value'] = df2explode.data.apply(lambda x: x['value-0'].tolist())
+    df_exploded = df2explode.loc[:, ('time_idx', 'value')]
+    return df_exploded.explode(list(df_exploded.columns)).reset_index(names='id').apply(pd.to_numeric)
 
 
 def main(tsad_results_path,
@@ -255,26 +220,10 @@ def main(tsad_results_path,
          limit_categories,
          output_path):
     """Main function to load data, downsample, and extract features."""
-    df_feature_extraction = load_and_preprocess_data(tsad_results_path, time_series_metadata_path,
-                                                     category_to_extract_features_for, limit_categories)
-
-    tqdm.pandas(desc="Downsampling time series data")
-
-    if downsampling_interval != 0:
-        df_feature_extraction = df_feature_extraction.groupby(['series_id']).progress_apply(downsample,
-                                                                                            interval=downsampling_interval,
-                                                                                            category_to_extract_features_for=category_to_extract_features_for).reset_index(
-            drop=True)
-
-    if reduced_sample_size != 0:
-        df_feature_extraction = reduce_sample_size(df_feature_extraction, reduced_sample_size,
-                                                   category_to_extract_features_for)
-        df_feature_extraction = df_feature_extraction.drop(['series_id', 'sequential_series_id'], axis=1)
-    else:
-        df_feature_extraction = df_feature_extraction.drop(['series_id'], axis=1)
-
-    extract_and_save_features(df_feature_extraction, n_jobs, limit_features, category_to_extract_features_for,
-                              output_path)
+    loaded_data = load_data(tsad_results_path, time_series_metadata_path,
+                                      category_to_extract_features_for, limit_categories)
+    df4extraction = explode_time_series(loaded_data)
+    extract_and_save_features(df4extraction, n_jobs=2, limit_features=limit_features, output_path='all_per_time_series.csv')
 
 
 if __name__ == "__main__":
