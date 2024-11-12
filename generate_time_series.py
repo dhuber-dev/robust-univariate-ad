@@ -199,4 +199,4 @@ if __name__ == "__main__":
     # ----- Generate Time Series -----
     gutentag = GutenTAG()
     gutentag.load_config_dict(configuration)
-    gutentag.generate(return_timeseries=False, output_folder="datasets/self_generated", n_jobs=30)
+    gutentag.generate(return_timeseries=False, output_folder="datasets/self_generated")
