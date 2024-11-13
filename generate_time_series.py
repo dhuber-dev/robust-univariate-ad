@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd 
 import random
-import yaml
+from ruamel.yaml import YAML
 from gutenTAG import GutenTAG, TrainingType, LABEL_COLUMN_NAME
 from tqdm import tqdm
 
@@ -26,15 +26,15 @@ anomaly_template_2 = {
 }
 
 anomaly_length = {
-    'amplitude': np.arange(50, 100, 10),
+    'amplitude': np.arange(50, 100, 10, dtype=int),
     'extremum': [1],
-    'frequency': np.arange(50, 100, 10),
-    'mean': np.arange(50, 100, 10),
-    'pattern': np.arange(50, 100, 10),
-    'pattern-shift': np.arange(50, 100, 10),
-    'platform': np.arange(50, 100, 10),
-    'trend': np.arange(50, 1000, 10),
-    'variance': np.arange(50, 100, 10)
+    'frequency': np.arange(50, 100, 10, dtype=int),
+    'mean': np.arange(50, 100, 10, dtype=int),
+    'pattern': np.arange(50, 100, 10, dtype=int),
+    'pattern-shift': np.arange(50, 100, 10, dtype=int),
+    'platform': np.arange(50, 100, 10, dtype=int),
+    'trend': np.arange(50, 1000, 10, dtype=int),
+    'variance': np.arange(50, 100, 10, dtype=int)
 }
 
 
@@ -42,26 +42,26 @@ anomaly_length = {
 def get_anomaly_type():
     anomaly_types = {
         'amplitude': {
-            'amplitude_factor': np.arange(0.5, 2, 0.1)},
+            'amplitude_factor': np.arange(0.5, 2, 0.1, dtype=np.float32)},
         'extremum': {
             'min': [True, False],
             'local': [True, False]},
-        'frequency': {'frequency_factor': np.arange(1.1, 2.5, 0.1)},
-        'mean': {'offset': np.arange(0.2, 1, 0.1)},
+        'frequency': {'frequency_factor': np.arange(1.1, 2.5, 0.1, dtype=np.float32)},
+        'mean': {'offset': np.arange(0.2, 1, 0.1, dtype=np.float32)},
         'pattern': {
-            'sine': {'sinusoid_k': np.arange(5.0, 10.0, 0.2)},  # Ramming factor for changing sine waves.
-            'cosine': {'sinusoid_k': np.arange(5.0, 10.0, 0.2)},
-            'square': {'square_duty': np.arange(0.2, 0.7, 0.1)},  # New duty of the square wave.
-            'sawtooth': {'sawtooth_width': np.arange(0.7, 1, 0.1)},  # New width
-            'cylinder_bell_funnel': {'cbf_pattern_factor': np.arange(1.4, 2.2, 0.1)}  # Pattern variance factor for change in CBF wave.
+            'sine': {'sinusoid_k': np.arange(5.0, 10.0, 0.2, dtype=np.float32)},  # Ramming factor for changing sine waves.
+            'cosine': {'sinusoid_k': np.arange(5.0, 10.0, 0.2, dtype=np.float32)},
+            'square': {'square_duty': np.arange(0.2, 0.7, 0.1, dtype=np.float32)},  # New duty of the square wave.
+            'sawtooth': {'sawtooth_width': np.arange(0.7, 1, 0.1, dtype=np.float32)},  # New width
+            'cylinder_bell_funnel': {'cbf_pattern_factor': np.arange(1.4, 2.2, 0.1, dtype=np.float32)}  # Pattern variance factor for change in CBF wave.
         },
         'pattern-shift': {
-            'shift_by': np.arange(5, 15, 1),  # Size of the shift length to the right. Can be negative for shift to the left.
-            'transition_window': np.arange(5, 15, 1),  # Number of points to the left and right used for transition.
+            'shift_by': np.arange(5, 15, 1, dtype=int),  # Size of the shift length to the right. Can be negative for shift to the left.
+            'transition_window': np.arange(5, 15, 1, dtype=int),  # Number of points to the left and right used for transition.
         },
-        'platform': {'value': np.arange(-0.3, 0.3, 0.1)},  # Value of the platform on Y-axis
+        'platform': {'value': np.arange(-0.3, 0.3, 0.1, dtype=np.float32)},  # Value of the platform on Y-axis
         'trend': generate_random_base_oscillation(),  # any form of the base oscillations
-        'variance': {'variance': np.arange(0.1, 0.5, 0.1)}  # Value of the new variance
+        'variance': {'variance': np.arange(0.1, 0.5, 0.1, dtype=np.float32)}  # Value of the new variance
     }
 
     return anomaly_types
@@ -71,7 +71,7 @@ def get_anomaly_type():
 def get_base_oscillation_template():
     # Define allowed kinds for base oscillations with corresponding parameters based on GutenTAG documentation
     base_oscillations_template = {
-        'variance': np.arange(0, 0.5, 0.01),  # Noise factor dependent on amplitude
+        'variance': np.arange(0, 0.5, 0.01, dtype=np.float32),  # Noise factor dependent on amplitude
         'offset': [0],  # Gets added to the generated time series
         'kind': list(base_oscillations_types.keys()),
     }
@@ -80,29 +80,29 @@ def get_base_oscillation_template():
 
 base_oscillations_types = {
     'sine': {
-        'frequency': np.arange(1, 15, 0.2),  # Number of square waves per 100 points
-        'amplitude': np.arange(0.5, 2.5, 0.5),  # +/- deviation from 0
-        'freq-mod': np.arange(0.01, 0.5, 0.01)  # Factor (of base frequency) of the frequency modulation that changes the amplitude of the wave over time. The carrier wave always has an amplitude of 1.
+        'frequency': np.arange(1, 15, 0.2, dtype=np.float32),  # Number of square waves per 100 points
+        'amplitude': np.arange(0.5, 2.5, 0.5, dtype=np.float32),  # +/- deviation from 0
+        'freq-mod': np.arange(0.01, 0.5, 0.01, dtype=np.float32)  # Factor (of base frequency) of the frequency modulation that changes the amplitude of the wave over time. The carrier wave always has an amplitude of 1.
     },
     'cosine': {
-        'frequency': np.arange(1, 15, 0.2),
-        'amplitude': np.arange(0.5, 2.5, 0.5),
-        'freq-mod': np.arange(0.01, 0.5, 0.01)
+        'frequency': np.arange(1, 15, 0.2, dtype=np.float32),
+        'amplitude': np.arange(0.5, 2.5, 0.5, dtype=np.float32),
+        'freq-mod': np.arange(0.01, 0.5, 0.01, dtype=np.float32)
     },
     'square': {
-        'frequency': np.arange(1, 15, 0.2),
-        'amplitude': np.arange(0.5, 2.5, 0.5),
-        'freq-mod': np.arange(0.01, 0.5, 0.01),
-        'duty': np.arange(2, 5, 1)
+        'frequency': np.arange(1, 15, 0.2, dtype=np.float32),
+        'amplitude': np.arange(0.5, 2.5, 0.5, dtype=np.float32),
+        'freq-mod': np.arange(0.01, 0.5, 0.01, dtype=np.float32),
+        'duty': np.arange(2, 5, 1, dtype=int)
     },
     'cylinder_bell_funnel': {
-        'avg-pattern-length': np.arange(100, 160, 10),  # Average length of pattern in time series
-        'amplitude': [1.0],  # Average amplitude of pattern in time series
+        'avg-pattern-length': np.arange(100, 160, 10, dtype=int),  # Average length of pattern in time series
+        'amplitude': [1],  # Average amplitude of pattern in time series
         'variance-pattern-length': [0.2],  # Variance of pattern length in time series
-        'variance-amplitude': np.arange(0.1, 5, 0.1)  # Variance of amplitude of pattern in time series
+        'variance-amplitude': np.arange(0.1, 5, 0.1, dtype=np.float32)  # Variance of amplitude of pattern in time series
     },
     'ecg': {
-        'frequency': np.arange(1, 10, 1)
+        'frequency': np.arange(1, 10, 1, dtype=int)
     },
     'polynomial': {
         'polynomial': [
@@ -182,7 +182,9 @@ def generate_configurations(num_series):
 
 def save_to_yaml(data, output_path='generated_config.yaml'):
     with open(output_path, 'w') as outfile:
-        yaml.dump_all([data], outfile)
+        yaml = YAML()
+        yaml.default_flow_style = False
+        yaml.dump(data, outfile)
 
     print(f"Configuration file saved to {output_path}")
 
