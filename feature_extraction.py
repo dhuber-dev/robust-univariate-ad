@@ -95,10 +95,11 @@ def load_data(tsad_results_path, time_series_metadata_path, category_to_extract_
 
     :returns: A DataFrame ready for feature extraction.
     """
-    eval_results = pd.read_csv(tsad_results_path)
+    # eval_results = pd.read_csv(tsad_results_path)
     tqdm.pandas(desc="Loading datasets")
-    datasets_with_unique_anomalies = set(eval_results.loc[eval_results.unique_anomaly_type == True, 'dataset'])
-    all_paths = [f'datasets/GutenTAG/{ds}/{file}.csv' for file in ['test', 'train_anomaly', 'train_no_anomaly'] for ds in datasets_with_unique_anomalies]
+    # datasets_with_unique_anomalies = set(eval_results.loc[eval_results.unique_anomaly_type == True, 'dataset'])
+    # all_paths = [f'datasets/GutenTAG/{ds}/{file}.csv' for file in ['test', 'train_anomaly', 'train_no_anomaly'] for ds in datasets_with_unique_anomalies]
+    all_paths = [f'datasets/self_generated/ts_{x}/train_anomaly.csv' for x in range(0, 10000)]
     time_series_df = pd.DataFrame({'path': all_paths})
     time_series_df['data'] = time_series_df.path.progress_apply(pd.read_csv)
 
@@ -205,7 +206,7 @@ def main(tsad_results_path,
     loaded_data = load_data(tsad_results_path, time_series_metadata_path,
                                       category_to_extract_features_for, limit_categories)
     df4extraction = explode_time_series(loaded_data)
-    extract_and_save_features(df4extraction, n_jobs=2, limit_features=limit_features, output_path=output_path)
+    extract_and_save_features(df4extraction, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
 
 
 if __name__ == "__main__":
