@@ -1,6 +1,7 @@
 # Generates random time series of length 10.000 with contamination of different anomaly types
 import numpy as np
-import pandas as pd 
+import pandas as pd
+from copy import deepcopy
 import random
 from ruamel.yaml import YAML
 from gutenTAG import GutenTAG, TrainingType, LABEL_COLUMN_NAME
@@ -26,15 +27,15 @@ anomaly_template_2 = {
 }
 
 anomaly_length = {
-    'amplitude': np.arange(50, 100, 10, dtype=int),
+    'amplitude': range(50, 100, 10),
     'extremum': [1],
-    'frequency': np.arange(50, 100, 10, dtype=int),
-    'mean': np.arange(50, 100, 10, dtype=int),
-    'pattern': np.arange(50, 100, 10, dtype=int),
-    'pattern-shift': np.arange(50, 100, 10, dtype=int),
-    'platform': np.arange(50, 100, 10, dtype=int),
-    'trend': np.arange(50, 1000, 10, dtype=int),
-    'variance': np.arange(50, 100, 10, dtype=int)
+    'frequency': range(50, 100, 10),
+    'mean': range(50, 100, 10),
+    'pattern': range(50, 100, 10),
+    'pattern-shift': range(50, 100, 10),
+    'platform': range(50, 100, 10),
+    'trend': range(50, 1000, 10),
+    'variance': range(50, 100, 10)
 }
 
 
@@ -56,8 +57,8 @@ def get_anomaly_type():
             'cylinder_bell_funnel': {'cbf_pattern_factor': np.arange(1.4, 2.2, 0.1, dtype=np.float32)}  # Pattern variance factor for change in CBF wave.
         },
         'pattern-shift': {
-            'shift_by': np.arange(5, 15, 1, dtype=int),  # Size of the shift length to the right. Can be negative for shift to the left.
-            'transition_window': np.arange(5, 15, 1, dtype=int),  # Number of points to the left and right used for transition.
+            'shift_by': range(5, 15, 1),  # Size of the shift length to the right. Can be negative for shift to the left.
+            'transition_window': range(5, 15, 1),  # Number of points to the left and right used for transition.
         },
         'platform': {'value': np.arange(-0.3, 0.3, 0.1, dtype=np.float32)},  # Value of the platform on Y-axis
         'trend': generate_random_base_oscillation(),  # any form of the base oscillations
@@ -75,7 +76,7 @@ def get_base_oscillation_template():
         'offset': [0],  # Gets added to the generated time series
         'kind': list(base_oscillations_types.keys()),
     }
-    return base_oscillations_template
+    return deepcopy(base_oscillations_template)
 
 
 base_oscillations_types = {
@@ -93,16 +94,10 @@ base_oscillations_types = {
         'frequency': np.arange(1, 15, 0.2, dtype=np.float32),
         'amplitude': np.arange(0.5, 2.5, 0.5, dtype=np.float32),
         'freq-mod': np.arange(0.01, 0.5, 0.01, dtype=np.float32),
-        'duty': np.arange(2, 5, 1, dtype=int)
-    },
-    'cylinder_bell_funnel': {
-        'avg-pattern-length': np.arange(100, 160, 10, dtype=int),  # Average length of pattern in time series
-        'amplitude': [1],  # Average amplitude of pattern in time series
-        'variance-pattern-length': [0.2],  # Variance of pattern length in time series
-        'variance-amplitude': np.arange(0.1, 5, 0.1, dtype=np.float32)  # Variance of amplitude of pattern in time series
+        'duty': range(2, 5, 1)
     },
     'ecg': {
-        'frequency': np.arange(1, 10, 1, dtype=int)
+        'frequency': range(1, 10, 1)
     },
     'polynomial': {
         'polynomial': [
@@ -129,12 +124,18 @@ def generate_random_base_oscillation():
     return base_oscillations
 
 
+def shuffel_anomaly(oscillation_type):
+    random_anomaly = {k: random.choice(p) for k, p in deepcopy(anomaly_template).items()}
+
+    if (oscillation_type == 'polynomial') and (random_anomaly['kinds'] in ['amplitude', 'frequency', 'pattern', 'pattern-shift']):
+        # Shuffle again if incompatible type (ref. https://github.com/TimeEval/GutenTAG/blob/main/doc/introduction/index.md)
+        return shuffel_anomaly(oscillation_type)
+
+    return random_anomaly
+
 def generate_random_anomaly(base_osc):
-    if base_osc[0]['kind'] == 'patern-shift':
-        template = anomaly_template_2
-    else:
-        template = anomaly_template
-    anomaly = {k: random.choice(p) for k, p in template.items()}
+    anomaly = shuffel_anomaly(base_osc[0]['kind'])
+
     kind = anomaly['kinds']
 
     anomaly_types = get_anomaly_type()
@@ -143,6 +144,7 @@ def generate_random_anomaly(base_osc):
     for k, p in anomaly_types[kind].items():
         if kind == 'trend':
             sub = {k: p}
+            sub['oscillation'] = generate_random_base_oscillation()
         elif kind == 'pattern':
             sub = {list(p.keys())[0]: random.choice(list(p.values())[0])}
         else:
@@ -164,9 +166,9 @@ def generate_random_anomaly(base_osc):
 def generate_configurations(num_series):
     anomaly_probability = 1.1  # Probability of generating a time series with an anomaly: e.g. 0.2 for 20% chance of anomaly
 
-    config = {'timeseries': []}
-    for i in tqdm(np.arange(num_series), desc='Generating time series configs'):
-        timeseries = timeseries_template
+    all_timeseries = []
+    for i in tqdm(range(num_series), desc='Generating time series configs'):
+        timeseries = deepcopy(timeseries_template)
 
         timeseries['base-oscillations'] = [generate_random_base_oscillation()]
         
@@ -176,13 +178,21 @@ def generate_configurations(num_series):
         else:
             timeseries['anomalies'] = []
         timeseries['name'] = f'ts_{i}'
-        config['timeseries'] += [timeseries]
-    return config
+        all_timeseries.append(timeseries)
+
+    return {'timeseries': all_timeseries}
 
 
 def save_to_yaml(data, output_path='generated_config.yaml'):
+    yaml = YAML()
+
+    def represent_float32(representer, data):
+        return representer.represent_float(float(data))
+
+    
+    yaml.representer.add_representer(np.float32, represent_float32)
+
     with open(output_path, 'w') as outfile:
-        yaml = YAML()
         yaml.default_flow_style = False
         yaml.dump(data, outfile)
 
@@ -195,7 +205,7 @@ if __name__ == "__main__":
     # ----- Generate Configuration File -----
 
     configuration = generate_configurations(10000)  # Generate x configurations/ time series
-    # save_to_yaml(configuration)
+    save_to_yaml(configuration)
 
 
     # ----- Generate Time Series -----
