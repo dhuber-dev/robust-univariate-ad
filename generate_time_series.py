@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 # Define general parameters for time series
 timeseries_template = {
-    'length': 10000,  # Length of entire time series
+    'length': 1000,  # Length of entire time series
     'semi-supervised': False,  # Whether a train file without anomalies should be generated
     'supervised': True,  # Whether the train file should contain labels
 }
@@ -27,7 +27,7 @@ anomaly_template_2 = {
 }
 
 anomaly_length = {
-    'amplitude': range(50, 100, 10),
+    'amplitude': [100],
     'extremum': [1],
     'frequency': range(50, 100, 10),
     'mean': range(50, 100, 10),
@@ -53,12 +53,12 @@ def get_anomaly_type():
             'sine': {'sinusoid_k': np.arange(5.0, 10.0, 0.2, dtype=np.float32)},  # Ramming factor for changing sine waves.
             'cosine': {'sinusoid_k': np.arange(5.0, 10.0, 0.2, dtype=np.float32)},
             'square': {'square_duty': np.arange(0.2, 0.7, 0.1, dtype=np.float32)},  # New duty of the square wave.
-            'sawtooth': {'sawtooth_width': np.arange(0.7, 1, 0.1, dtype=np.float32)},  # New width
+            'sawtooth': {'sawtooth_width': np.arange(0.7, 1.0, 0.1, dtype=np.float32)},  # New width
             'cylinder_bell_funnel': {'cbf_pattern_factor': np.arange(1.4, 2.2, 0.1, dtype=np.float32)}  # Pattern variance factor for change in CBF wave.
         },
         'pattern-shift': {
-            'shift_by': range(5, 15, 1),  # Size of the shift length to the right. Can be negative for shift to the left.
-            'transition_window': range(5, 15, 1),  # Number of points to the left and right used for transition.
+            'shift_by': [5],  # Size of the shift length to the right. Can be negative for shift to the left.
+            'transition_window': [5],  # Number of points to the left and right used for transition.
         },
         'platform': {'value': np.arange(-0.3, 0.3, 0.1, dtype=np.float32)},  # Value of the platform on Y-axis
         'trend': generate_random_base_oscillation(),  # any form of the base oscillations
@@ -96,9 +96,6 @@ base_oscillations_types = {
         'freq-mod': np.arange(0.01, 0.5, 0.01, dtype=np.float32),
         'duty': range(2, 5, 1)
     },
-    'ecg': {
-        'frequency': range(1, 10, 1)
-    },
     'polynomial': {
         'polynomial': [
         [1, 1, -8, -4, 1],
@@ -109,7 +106,7 @@ base_oscillations_types = {
 
 
 # Function to generate random base oscillations
-def generate_random_base_oscillation():
+def generate_random_base_oscillation(is_main_oscilation=True):
     base_oscillation_template = get_base_oscillation_template()
 
     base_oscillations = {k: random.choice(p) for k, p in base_oscillation_template.items()}
@@ -118,8 +115,8 @@ def generate_random_base_oscillation():
         base_oscillations[k] = random.choice(p)
 
     # Randomly add optional trend to base oscillation with probability
-    if random.random() < 0.1:
-        base_oscillations["trend"] = generate_random_base_oscillation()
+    if random.random() < 0.1 and is_main_oscilation:
+        base_oscillations["trend"] = generate_random_base_oscillation(is_main_oscilation=False)
 
     return base_oscillations
 
@@ -144,7 +141,7 @@ def generate_random_anomaly(base_osc):
     for k, p in anomaly_types[kind].items():
         if kind == 'trend':
             sub = {k: p}
-            sub['oscillation'] = generate_random_base_oscillation()
+            sub['oscillation'] = generate_random_base_oscillation(is_main_oscilation=False)
         elif kind == 'pattern':
             sub = {list(p.keys())[0]: random.choice(list(p.values())[0])}
         else:
