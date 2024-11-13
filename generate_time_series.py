@@ -195,7 +195,7 @@ if __name__ == "__main__":
     # ----- Generate Configuration File -----
 
     configuration = generate_configurations(10000)  # Generate x configurations/ time series
-    save_to_yaml(configuration)
+    # save_to_yaml(configuration)
 
 
     # ----- Generate Time Series -----
