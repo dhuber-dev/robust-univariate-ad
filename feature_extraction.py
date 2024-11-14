@@ -86,7 +86,7 @@ def reduce_sample_size(df_samples: pd.DataFrame, num_samples_to_keep: int, categ
         return df_samples.loc[df_samples.sequential_series_id <= num_samples_to_keep]
 
 
-def load_data(tsad_results_path, time_series_metadata_path, category_to_extract_features_for, limit_categories):
+def load_data():
     """Load and preprocess the data from specified file paths.
 
     :param tsad_results_path: A string path to the TSAD evaluation results CSV file.
@@ -101,7 +101,7 @@ def load_data(tsad_results_path, time_series_metadata_path, category_to_extract_
     # all_paths = [f'datasets/GutenTAG/{ds}/{file}.csv' for file in ['test', 'train_anomaly', 'train_no_anomaly'] for ds in datasets_with_unique_anomalies]
     all_paths = [f'datasets/self_generated/ts_{x}/train_anomaly.csv' for x in range(0, 10000)]
     time_series_df = pd.DataFrame({'path': all_paths})
-    time_series_df['data'] = time_series_df.path.progress_apply(pd.read_csv)
+    time_series_df['data'] = time_series_df.path.progress_apply(lambda x: pd.read_csv(x, index_col=0))
 
     return time_series_df
 
@@ -203,10 +203,11 @@ def main(tsad_results_path,
          limit_categories,
          output_path):
     """Main function to load data, downsample, and extract features."""
-    loaded_data = load_data(tsad_results_path, time_series_metadata_path,
-                                      category_to_extract_features_for, limit_categories)
+    loaded_data = load_data()
+    loaded_data.to_csv('loaded_self_generated_df.csv')
     df4extraction = explode_time_series(loaded_data)
-    extract_and_save_features(df4extraction, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
+    df4extraction.to_csv('exploded_self_generated_df.csv')
+    extract_and_save_features(df4extraction.dropna(subset='value'), n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
 
 
 if __name__ == "__main__":
