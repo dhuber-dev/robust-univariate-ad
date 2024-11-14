@@ -99,7 +99,7 @@ def load_data():
     tqdm.pandas(desc="Loading datasets")
     # datasets_with_unique_anomalies = set(eval_results.loc[eval_results.unique_anomaly_type == True, 'dataset'])
     # all_paths = [f'datasets/GutenTAG/{ds}/{file}.csv' for file in ['test', 'train_anomaly', 'train_no_anomaly'] for ds in datasets_with_unique_anomalies]
-    all_paths = [f'datasets/self_generated/ts_{x}/train_anomaly.csv' for x in range(0, 1000)]
+    all_paths = [f'datasets/self_generated/ts_{x}/train_anomaly.csv' for x in range(0, 10000)]
     time_series_df = pd.DataFrame({'path': all_paths})
     time_series_df['data'] = time_series_df.path.progress_apply(pd.read_csv)
 
