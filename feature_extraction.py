@@ -99,9 +99,9 @@ def load_data():
     tqdm.pandas(desc="Loading datasets")
     # datasets_with_unique_anomalies = set(eval_results.loc[eval_results.unique_anomaly_type == True, 'dataset'])
     # all_paths = [f'datasets/GutenTAG/{ds}/{file}.csv' for file in ['test', 'train_anomaly', 'train_no_anomaly'] for ds in datasets_with_unique_anomalies]
-    all_paths = [f'datasets/self_generated/ts_{x}/train_anomaly.csv' for x in range(0, 10000)]
+    all_paths = [f'datasets/self_generated/ts_{x}/train_anomaly.csv' for x in range(0, 1000)]
     time_series_df = pd.DataFrame({'path': all_paths})
-    time_series_df['data'] = time_series_df.path.progress_apply(lambda x: pd.read_csv(x, index_col=0))
+    time_series_df['data'] = time_series_df.path.progress_apply(pd.read_csv)
 
     return time_series_df
 
@@ -207,7 +207,9 @@ def main(tsad_results_path,
     loaded_data.to_csv('loaded_self_generated_df.csv')
     df4extraction = explode_time_series(loaded_data)
     df4extraction.to_csv('exploded_self_generated_df.csv')
-    extract_and_save_features(df4extraction.dropna(subset='value'), n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
+    cleaned_df4extraction = df4extraction.dropna()
+    print('instances deleted due to NaN', len(df4extraction) - len(cleaned_df4extraction), '/', len(df4extraction))
+    extract_and_save_features(cleaned_df4extraction, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
 
 
 if __name__ == "__main__":
