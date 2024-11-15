@@ -46,6 +46,10 @@ def main(features, labels, output_path):
     # Create and compile the model
     model_instance = BidirectionalLSTM(input_shape=(X_train.shape[1], X_train.shape[2]),
                                        num_classes=len(label_encoder.classes_))
+
+    num_classes = len(labels.unique())
+    xgb_model = XGBoostModel(num_classes)
+
     model = model_instance.get_model()
 
     # Train the model
@@ -79,16 +83,34 @@ def main(features, labels, output_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="DL Model for time series data.")
-    parser.add_argument("--loaded-df", type=str)
-    parser.add_argument("--exploded-df", type=str)
+    parser.add_argument("-l", "--labels", type=str)
+    parser.add_argument("-d", "--data", type=str)
+    parser.add_argument("-i", "--input", description="'features' or 'time-series'", type=str)
+    parser.add_argument("-m", "--model", type=str, help="Name of the model class (e.g., FeedForward, LSTMTimeSeries, FeatureBased, XGBoost).")
     parser.add_argument("--output-path", default='results_dl_model_time_series', type=str)
 
     args = parser.parse_args()
 
+    # Load the specified model class
+    ModelClass = load_model_class(args.model)
+
+    if args.model in ["FeedForward", "LSTMTimeSeries", "FeatureBased"]:
+        if args.input_shape is None:
+            raise ValueError("Input shape must be provided for neural network models.")
+        model_instance = ModelClass(input_shape=tuple(args.input_shape), num_classes=args.num_classes)
+    elif args.model == "XGBoost":
+        model_instance = ModelClass(num_classes=args.num_classes)
+    else:
+        raise ValueError("Invalid model name.")
+
+    print(f"Initialized model: {args.model} on {args.input}")
+
     os.makedirs(args.output_path, exist_ok=True)
 
-    data = pd.read_csv(args.exploded_df, index_col=0)
-    data_wide = preprocess_exploded_features(data)
+    data = pd.read_csv(args.data, index_col=0)
+
+    if args.input == 'time-series':
+        data_wide = preprocess_exploded_features(data)
 
     label_data = pd.read_csv(args.loaded_df, index_col=0)
 
