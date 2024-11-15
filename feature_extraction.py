@@ -15,6 +15,7 @@ Date: 2024-09-04
 """
 import ast
 import csv
+import yaml
 import pandas as pd
 import math
 from tqdm import tqdm
@@ -193,6 +194,20 @@ def explode_time_series(df2explode):
     return df_exploded.explode(list(df_exploded.columns)).reset_index(names='id').apply(pd.to_numeric)
 
 
+def read_yaml(path):
+    with open(path) as stream:
+        try:
+            return yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+
+
+def add_anomaly_kinds():
+    generated_file = read_yaml('archive/generated_config.yaml')
+    anomalies = [x['anomalies'][0]['kinds'][0]['kind'] for x in generated_file['timeseries']]
+    return anomalies
+
+
 def main(tsad_results_path,
          time_series_metadata_path,
          downsampling_interval,
@@ -204,12 +219,15 @@ def main(tsad_results_path,
          output_path):
     """Main function to load data, downsample, and extract features."""
     loaded_data = load_data()
-    loaded_data.to_csv('loaded_self_generated_df.csv')
-    df4extraction = explode_time_series(loaded_data)
+    loaded_data['anomaly'] = add_anomaly_kinds()
+    loaded_data['invalid_data'] = loaded_data['data'].apply(lambda x: x['value-0'].isna().any())
+    loaded_data_clean = loaded_data.loc[~loaded_data.invalid_data]
+    print('instances deleted due to NaN', len(loaded_data) - len(loaded_data_clean), '/', len(loaded_data))
+    loaded_data_clean.to_csv('loaded_self_generated_df.csv')
+    df4extraction = explode_time_series(loaded_data_clean)
     df4extraction.to_csv('exploded_self_generated_df.csv')
-    cleaned_df4extraction = df4extraction.dropna()
-    print('instances deleted due to NaN', len(df4extraction) - len(cleaned_df4extraction), '/', len(df4extraction))
-    extract_and_save_features(cleaned_df4extraction, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
+
+    extract_and_save_features(df4extraction, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
 
 
 if __name__ == "__main__":
