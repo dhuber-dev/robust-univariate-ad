@@ -1,0 +1,46 @@
+from keras import Sequential, Input
+from keras.layers import Dense, Dropout, Flatten
+from keras.optimizers import Adam
+from keras.regularizers import l2
+
+
+class FFModel:
+    def __init__(self, input_shape, num_classes):
+        """
+        Initialize the TimeSeriesModel with the given input shape and number of classes.
+        """
+        self.input_shape = input_shape
+        self.num_classes = num_classes
+        self.model = self._build_model()
+
+    def _build_model(self):
+        """
+        Build and compile a more powerful FeedForward model with improved architecture and regularization.
+        """
+        model = Sequential([
+            Input(shape=self.input_shape),  # Explicit input layer
+            Flatten(),
+            Dense(1024, activation='relu', kernel_regularizer=l2(0.01)),
+            Dropout(0.4),
+            Dense(512, activation='relu', kernel_regularizer=l2(0.01)),
+            Dropout(0.4),
+            Dense(256, activation='relu', kernel_regularizer=l2(0.01)),
+            Dropout(0.3),
+            Dense(128, activation='relu', kernel_regularizer=l2(0.01)),
+            Dropout(0.3),
+            Dense(self.num_classes, activation='softmax')  # Output layer for classification
+        ])
+
+        # Adjust learning rate for better convergence
+        optimizer = Adam(learning_rate=0.0005)
+
+        model.compile(optimizer=optimizer,
+                      loss='sparse_categorical_crossentropy',
+                      metrics=['accuracy'])
+        return model
+
+    def get_model(self):
+        """
+        Return the compiled model.
+        """
+        return self.model
