@@ -15,6 +15,8 @@ Date: 2024-09-04
 """
 import ast
 import csv
+from pathlib import Path
+
 import yaml
 import pandas as pd
 import math
@@ -87,20 +89,17 @@ def reduce_sample_size(df_samples: pd.DataFrame, num_samples_to_keep: int, categ
         return df_samples.loc[df_samples.sequential_series_id <= num_samples_to_keep]
 
 
-def load_data():
-    """Load and preprocess the data from specified file paths.
+def load_data(path):
+    def find_train_csv_files(root_dir):
+        # Convert root_dir to a Path object
+        root_path = Path(root_dir)
 
-    :param tsad_results_path: A string path to the TSAD evaluation results CSV file.
-    :param time_series_metadata_path: A string path to the time series metadata CSV file.
-    :param category_to_extract_features_for: A string indicating the category for feature extraction.
+        # Use the rglob method to find all matching files in root_dir and subdirectories
+        return [file.resolve() for file in root_path.rglob('train_anomaly.csv')]
 
-    :returns: A DataFrame ready for feature extraction.
-    """
     # eval_results = pd.read_csv(tsad_results_path)
     tqdm.pandas(desc="Loading datasets")
-    # datasets_with_unique_anomalies = set(eval_results.loc[eval_results.unique_anomaly_type == True, 'dataset'])
-    # all_paths = [f'datasets/GutenTAG/{ds}/{file}.csv' for file in ['test', 'train_anomaly', 'train_no_anomaly'] for ds in datasets_with_unique_anomalies]
-    all_paths = [f'datasets/self_generated/ts_{x}/train_anomaly.csv' for x in range(0, 10000)]
+    all_paths = find_train_csv_files(path)
     time_series_df = pd.DataFrame({'path': all_paths})
     time_series_df['data'] = time_series_df.path.progress_apply(pd.read_csv)
 
@@ -165,7 +164,7 @@ def extract_features_from_string(input_string: str, fc_parameters: dict) -> dict
     return fc_parameters
 
 
-def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, limit_features: str, output_path: str):
+def extract_features_with_dask(df_feature_extraction: pd.DataFrame, n_jobs: int, limit_features: str, output_path: str):
     """Extract features from the time series data using Dask and save to a CSV file.
 
     :param df_feature_extraction: A DataFrame containing the preprocessed time series data.
@@ -183,8 +182,7 @@ def extract_and_save_features(df_feature_extraction: pd.DataFrame, n_jobs: int, 
                                               column_sort='time_idx',
                                               n_jobs=n_jobs)
 
-    # Save the extracted features to a CSV file
-    extracted_features.to_csv(output_path)
+    return extracted_features
 
 
 def explode_time_series(df2explode):
@@ -202,56 +200,44 @@ def read_yaml(path):
             print(exc)
 
 
-def add_anomaly_kinds():
-    generated_file = read_yaml('archive/generated_config.yaml')
+def add_anomaly_kinds(config_path):
+    generated_file = read_yaml(config_path)
     anomalies = [x['anomalies'][0]['kinds'][0]['kind'] for x in generated_file['timeseries']]
     return anomalies
 
 
-def main(tsad_results_path,
-         time_series_metadata_path,
-         downsampling_interval,
-         reduced_sample_size,
-         n_jobs,
-         limit_features,
-         category_to_extract_features_for,
-         limit_categories,
-         output_path):
-    """Main function to load data, downsample, and extract features."""
-    loaded_data = load_data()
-    loaded_data['anomaly'] = add_anomaly_kinds()
+def preprocess_datasets(dataset_folder, config_path):
+    loaded_data = load_data(dataset_folder)
+    loaded_data['anomaly'] = add_anomaly_kinds(config_path)
     loaded_data['invalid_data'] = loaded_data['data'].apply(lambda x: x['value-0'].isna().any())
+    delete_instance = loaded_data['invalid_data'].value_counts()
+    print('instances deleted due to NaN:', f'{delete_instance[True]}/{delete_instance[False]}')
+    loaded_data.to_csv(f'loaded_self_generated_df.csv')
     loaded_data_clean = loaded_data.loc[~loaded_data.invalid_data]
-    print('instances deleted due to NaN', len(loaded_data) - len(loaded_data_clean), '/', len(loaded_data))
-    loaded_data_clean.to_csv('loaded_self_generated_df.csv')
     df4extraction = explode_time_series(loaded_data_clean)
     df4extraction.to_csv('exploded_self_generated_df.csv')
+    return df4extraction
 
-    extract_and_save_features(df4extraction, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
+
+def main(dataset_folder, config_path, n_jobs, limit_features, output_path):
+    pp_df = preprocess_datasets(dataset_folder, config_path)
+    features = extract_features_with_dask(pp_df, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
+    features.to_csv(output_path)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Downsample time series and extract features using tsfresh.")
-    parser.add_argument("--tsad-results", type=str, default='datasets/tsad_evaluation_results_preprocessed.csv',
-                        help="Path to the TSAD evaluation results CSV file.")
-    parser.add_argument("--time-series-metadata", type=str, default='datasets/GutenTAG/datasets.csv',
-                        help="Path to the time series metadata CSV file.")
-    parser.add_argument("--downsampling-interval", type=int, default=0,
-                        help="Interval for downsampling the time series.")
-    parser.add_argument("--reduced-sample-size", type=int, default=0,
-                        help="Number of samples to keep for each algorithm family.")
+    parser = argparse.ArgumentParser(description="Extract features using tsfresh.")
+    parser.add_argument("-c", "--time-series-config", type=str, default='generated_config.yaml',
+                        help="Path to the config YAML file generated by `generate_time_series.py`.")
+    parser.add_argument("-d", "--dataset-folder", type=str, default='datasets/self_generated/',
+                        help="Path to root of dataset CSV files.")
     parser.add_argument("--n-jobs", type=int, default=0,
                         help="Number of cores to use.")
     parser.add_argument("--limit-features", type=str, default=[],
                         help="Only use predefined subset of features to boost extraction if resources limited.")
-    parser.add_argument("--category", type=str, default="algo_family",
-                        help='Category to extract features for ("algo_family" or "anomaly_kind").')
-    parser.add_argument("--limit-categories", type=str, default=[],
-                        help='Only perform feature extraction on a subset of categories.')
-    parser.add_argument("--output-path", type=str, default='datasets/features.csv',
+    parser.add_argument("--output-path", type=str, default='features/features.csv',
                         help="Path to save the extracted features CSV file.")
 
     args = parser.parse_args()
 
-    main(args.tsad_results, args.time_series_metadata, args.downsampling_interval, args.reduced_sample_size,
-         args.n_jobs, args.limit_features, args.category, args.limit_categories, args.output_path)
+    main(args.dataset_folder, args.time_series_config, args.n_jobs, args.limit_features, args.output_path)
