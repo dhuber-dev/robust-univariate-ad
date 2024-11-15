@@ -1,4 +1,6 @@
 # Generates random time series of length 10.000 with contamination of different anomaly types
+import argparse
+
 import numpy as np
 import pandas as pd
 from copy import deepcopy
@@ -130,18 +132,16 @@ def shuffel_anomaly(oscillation_type):
 
     return random_anomaly
 
+
 def generate_random_anomaly(base_osc):
     anomaly = shuffel_anomaly(base_osc[0]['kind'])
-
     kind = anomaly['kinds']
-
     anomaly_types = get_anomaly_type()
 
     anomaly_characteristics = {}
     for k, p in anomaly_types[kind].items():
         if kind == 'trend':
-            sub = {k: p}
-            sub['oscillation'] = generate_random_base_oscillation(is_main_oscilation=False)
+            sub = {k: p, 'oscillation': generate_random_base_oscillation(is_main_oscilation=False)}
         elif kind == 'pattern':
             sub = {list(p.keys())[0]: random.choice(list(p.values())[0])}
         else:
@@ -161,51 +161,59 @@ def generate_random_anomaly(base_osc):
 
 
 def generate_configurations(num_series):
-    anomaly_probability = 1.1  # Probability of generating a time series with an anomaly: e.g. 0.2 for 20% chance of anomaly
-
     all_timeseries = []
     for i in tqdm(range(num_series), desc='Generating time series configs'):
         timeseries = deepcopy(timeseries_template)
 
         timeseries['base-oscillations'] = [generate_random_base_oscillation()]
-        
-        # Decide if this series will have anomalies based on probability
-        if random.random() < anomaly_probability:
-            timeseries['anomalies'] = [generate_random_anomaly(timeseries['base-oscillations'])]
-        else:
-            timeseries['anomalies'] = []
+        timeseries['anomalies'] = [generate_random_anomaly(timeseries['base-oscillations'])]
         timeseries['name'] = f'ts_{i}'
+
         all_timeseries.append(timeseries)
 
     return {'timeseries': all_timeseries}
 
 
-def save_to_yaml(data, output_path='generated_config.yaml'):
+def save_to_yaml(data2save, output_path='generated_config.yaml'):
     yaml = YAML()
 
-    def represent_float32(representer, data):
-        return representer.represent_float(float(data))
+    def represent_float32(representer, data2save):
+        return representer.represent_float(float(data2save))
 
-    
     yaml.representer.add_representer(np.float32, represent_float32)
 
     with open(output_path, 'w') as outfile:
         yaml.default_flow_style = False
-        yaml.dump(data, outfile)
+        yaml.dump(data2save, outfile)
 
     print(f"Configuration file saved to {output_path}")
 
 
 if __name__ == "__main__":
-    # get_template("C:/Users/HUD2FH/OneDrive - Bosch Group/01_Useful_Libs/GutenTAG/synthetic_dataset/GutenTAG/overview.yaml")
-    
-    # ----- Generate Configuration File -----
+    parser = argparse.ArgumentParser(description="Generate synthetic time series of different anomaly kind.")
+    parser.add_argument("-n", '--number',
+                        description='Number of time series to create.',
+                        type=str)
+    parser.add_argument('-c', '--config-output-path',
+                        description='Config Output file.',
+                        default='datasets/self_generated',
+                        type=str)
+    parser.add_argument('--config-only',
+                        description='If only the config file should be created (e.g. to run the time series generation from the comand line).',
+                        default=True,
+                        type=bool)
+    parser.add_argument('-d', '--data-output-path',
+                        description='Output folder to export time series.',
+                        default='datasets/self_generated',
+                        type=str)
+    args = parser.parse_args()
 
-    configuration = generate_configurations(10000)  # Generate x configurations/ time series
+    # ----- Generate Configuration File -----
+    configuration = generate_configurations(argparse.number)  # Generate x time series
     save_to_yaml(configuration)
 
-
-    # ----- Generate Time Series -----
-    gutentag = GutenTAG()
-    gutentag.load_config_dict(configuration)
-    gutentag.generate(return_timeseries=False, output_folder="datasets/self_generated")
+    if not args.config_only:
+        # ----- Generate Time Series -----
+        gutentag = GutenTAG()
+        gutentag.load_config_dict(configuration)
+        gutentag.generate(return_timeseries=False, output_folder=args.data_output_path)
