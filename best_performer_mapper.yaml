@@ -1,0 +1,9 @@
+amplitude: distance
+extremum: forecasting
+frequency: distance
+mean: distance
+pattern: distance
+pattern-shift: distance
+platform: distance
+trend: encoding
+variance: trees
