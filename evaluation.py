@@ -72,7 +72,7 @@ def main(features, labels, input_type, output_path, hyperparameters, mapping):
 
     # Prepare
     ## Features
-    if input_type == "time-series":
+    if input_type == 'time-series':
         features = preprocess_time_series_data(data)
     elif input_type == 'features':
         features = data.dropna(axis=1)
@@ -85,10 +85,12 @@ def main(features, labels, input_type, output_path, hyperparameters, mapping):
 
     ## Labels
     if mapping:
+        # Use algorithm family labels instead of anomaly kinds
+        output_path = output_path.replace('.md', '_premapping.md')
         labels = labels.map(read_yaml('best_performer_mapper.yaml'))
     label_encoder = LabelEncoder()
     labels = label_encoder.fit_transform(labels)
-    label_mapping = dict(zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_)))
+    label_mapping = dict(zip(label_encoder.transform(label_encoder.classes_), label_encoder.classes_))
 
     ## Split & scale
     X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.2, random_state=42)
@@ -98,19 +100,34 @@ def main(features, labels, input_type, output_path, hyperparameters, mapping):
 
     y_pred = evaluate_FFModel(X_train, y_train, X_test, y_test, hyperparameters)
 
-    print(classification_report(y_test, y_pred, zero_division=0))
-    class_report = classification_report(y_test, y_pred, zero_division=0, output_dict=True)
+    # Translate labels back to interpretable strings
+    y_test = [label_mapping[x] for x in y_test]  # test labels in string form
+    y_pred = [label_mapping[int(x)] for x in y_pred]  # predicted labels in string form
 
-    report = markdown_report(class_report)
+    def get_report(file_name):
+        print(classification_report(y_test, y_pred, zero_division=0))
+        class_report = classification_report(y_test, y_pred, zero_division=0, output_dict=True)
 
-    learning_rate, batch_size, num_epochs = hyperparameters
-    report += f'\nInput Type: {input_type}\nLearning Rate: {learning_rate}\nBatch Size: {batch_size}\nNumber of Epochs: {num_epochs}'
-    report += f'\nMapping: {label_mapping}'
+        report = markdown_report(class_report)
 
-    # Save the markdown report to a .md file
-    with open(output_path, "w") as f:
-        f.write(report)
+        learning_rate, batch_size, num_epochs = hyperparameters
+        report += f'\nInput Type: {input_type}\nLearning Rate: {learning_rate}\nBatch Size: {batch_size}\nNumber of Epochs: {num_epochs}'
+        report += f'\nMapping: {label_mapping}'
 
+        # Save the markdown report to a .md file
+        with open(file_name, "w") as f:
+            f.write(report)
+
+        print(f'Report written to {file_name}')
+
+    get_report(output_path.replace('.md', '_anomaly_type_post_mapping.md'))
+    if not mapping:
+        # Translate anomaly kind labels to algorithm family labels
+        mapper = read_yaml('best_performer_mapper.yaml')
+        y_test = [mapper[x] for x in y_test]  # test labels in string form
+        y_pred = [mapper[x] for x in y_pred]  # predicted labels in string form
+
+        get_report(output_path.replace('.md', '_algo_family_post_mapping.md'))
 
 
 if __name__ == '__main__':
@@ -128,23 +145,21 @@ if __name__ == '__main__':
                         required=True,
                         choices=["features", "time-series"],
                         help="Type of input data ('features' or 'time-series').")
-    parser.add_argument("--mapping",
-                        type=bool,
-                        default=False,
-                        help="Labels to use: `False` for anomaly kinds, `True` for algorithm families.")
+    parser.add_argument('--pre-mapping', dest='mapping', action='store_true')
+    parser.add_argument('--post-mapping', dest='mapping', action='store_false')
     parser.add_argument("--output", "-o",
                         type=str,
                         required=True,
                         help="Output file for saving the classification report.")
 
     # Hyperparameters
-    parser.add_argument("--learning_rate",
+    parser.add_argument("--learning-rate",
                         type=float,
                         default=0.001)
-    parser.add_argument("--batch_size",
+    parser.add_argument("--batch-size",
                         type=int,
                         default=64)
-    parser.add_argument("--num_epochs",
+    parser.add_argument("--num-epochs",
                         type=int,
                         default=200)
 
