@@ -99,7 +99,7 @@ def main(features, labels, input_type, output_path, hyperparameters, mapping):
     X_test = scaler.transform(X_test)
 
     y_pred, loss_evaluation = evaluate_FFModel(X_train, y_train, X_test, y_test, hyperparameters)
-    pd.DataFrame(loss_evaluation).to_csv(output_path.replace('.md', '_loss_evaluation.csv'))
+    pd.Series(loss_evaluation).to_csv(output_path.replace('.md', '_loss_evaluation.csv'))
 
     # Translate labels back to interpretable strings
     y_test = [label_mapping[x] for x in y_test]  # test labels in string form
