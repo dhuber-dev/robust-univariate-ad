@@ -50,7 +50,7 @@ def evaluate_FFModel(X_train, y_train, X_test, y_test):
     # hyperparams
     learning_rate = 0.001
     batch_size = 64
-    num_epochs = 2
+    num_epochs = 200
 
     ## To tensor
     X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
