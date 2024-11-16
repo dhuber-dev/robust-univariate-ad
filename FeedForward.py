@@ -69,6 +69,8 @@ def evaluate_FFModel(X_train, y_train, X_test, y_test, hyperparameters):
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
+    loss_evolution = {}
+
     # Training loop
     for epoch in range(num_epochs):
         model.train()
@@ -95,6 +97,7 @@ def evaluate_FFModel(X_train, y_train, X_test, y_test, hyperparameters):
             optimizer.step()
 
         print(f'epoch {epoch+1}/{num_epochs}, loss {loss.item():.4f}')
+        loss_evolution[epoch+1] = loss.item()
 
     # Test the model
     model.eval()
@@ -124,4 +127,4 @@ def evaluate_FFModel(X_train, y_train, X_test, y_test, hyperparameters):
     test_accuracy = correct / total
     print(f"Test Loss: {test_loss / len(test_loader):.4f}, Test Accuracy: {test_accuracy:.4f}")
 
-    return y_pred
+    return y_pred, loss_evolution
