@@ -61,12 +61,10 @@ def markdown_report(class_report):
         metrics = class_report[avg_type]
         markdown_report += f"| {avg_type.title()} | {metrics['precision']:.4f} | {metrics['recall']:.4f} | {metrics['f1-score']:.4f} | {metrics['support']:.0f} |\n"
 
-
-
     return markdown_report
 
 
-def main(features, labels, input_type, output_path):
+def main(features, labels, input_type, output_path, hyperparameters, mapping):
     # Load data
     data = pd.read_csv(features, index_col=0)
     labels = pd.read_csv(labels, index_col=0)
@@ -76,10 +74,18 @@ def main(features, labels, input_type, output_path):
     ## Features
     if input_type == "time-series":
         features = preprocess_time_series_data(data)
+    elif input_type == 'features':
+        features = data.dropna(axis=1)
+        features = features.loc[:, features.nunique() > 1] # Remove columns with just one value
+        print(len(features.columns), 'features used.')
+        features = features.clip(lower=-1e6, upper=1e6)
+
     else:
-        features = data.clip(lower=-1e6, upper=1e6)
+        raise ValueError
 
     ## Labels
+    if mapping:
+        labels = labels.map(read_yaml('best_performer_mapper.yaml'))
     label_encoder = LabelEncoder()
     labels = label_encoder.fit_transform(labels)
     label_mapping = dict(zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_)))
@@ -90,16 +96,20 @@ def main(features, labels, input_type, output_path):
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
 
-    y_pred = evaluate_FFModel(X_train, y_train, X_test, y_test)
+    y_pred = evaluate_FFModel(X_train, y_train, X_test, y_test, hyperparameters)
 
     print(classification_report(y_test, y_pred, zero_division=0))
     class_report = classification_report(y_test, y_pred, zero_division=0, output_dict=True)
 
-    class_report_md = markdown_report(class_report)
+    report = markdown_report(class_report)
+
+    learning_rate, batch_size, num_epochs = hyperparameters
+    report += f'\nInput Type: {input_type}\nLearning Rate: {learning_rate}\nBatch Size: {batch_size}\nNumber of Epochs: {num_epochs}'
+    report += f'\nMapping: {[f'- {l}: {l_int}' for l, l_int in label_mapping.items()]}'
 
     # Save the markdown report to a .md file
     with open(output_path, "w") as f:
-        f.write(class_report_md)
+        f.write(report)
 
 
 
@@ -118,14 +128,26 @@ if __name__ == '__main__':
                         required=True,
                         choices=["features", "time-series"],
                         help="Type of input data ('features' or 'time-series').")
+    parser.add_argument("--mapping",
+                        type=bool,
+                        default=False,
+                        help="Labels to use: `False` for anomaly kinds, `True` for algorithm families.")
     parser.add_argument("--output", "-o",
                         type=str,
                         required=True,
                         help="Output file for saving the classification report.")
 
+    # Hyperparameters
+    parser.add_argument("--learning_rate",
+                        type=float,
+                        default=0.001)
+    parser.add_argument("--batch_size",
+                        type=int,
+                        default=64)
+    parser.add_argument("--num_epochs",
+                        type=int,
+                        default=200)
+
     args = parser.parse_args()
 
-
-    main(args.features, args.labels, args.input, args.output)
-
-
+    main(args.features, args.labels, args.input, args.output, (args.learning_rate, args.batch_size, args.num_epochs), args.mapping)

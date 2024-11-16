@@ -46,11 +46,8 @@ class FFModel(nn.Module):
         return x
 
 
-def evaluate_FFModel(X_train, y_train, X_test, y_test):
-    # hyperparams
-    learning_rate = 0.001
-    batch_size = 64
-    num_epochs = 200
+def evaluate_FFModel(X_train, y_train, X_test, y_test, hyperparameters):
+    learning_rate, batch_size, num_epochs = hyperparameters
 
     ## To tensor
     X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
@@ -97,7 +94,7 @@ def evaluate_FFModel(X_train, y_train, X_test, y_test):
             loss.backward()
             optimizer.step()
 
-        print(f'epoch {epoch+1}/{num_epochs}, loss {loss.item()}:.2f')
+        print(f'epoch {epoch+1}/{num_epochs}, loss {loss.item():.4f}')
 
     # Test the model
     model.eval()
