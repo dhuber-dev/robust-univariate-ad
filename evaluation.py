@@ -105,7 +105,7 @@ def main(features, labels, input_type, output_path, hyperparameters, mapping):
 
     learning_rate, batch_size, num_epochs = hyperparameters
     report += f'\nInput Type: {input_type}\nLearning Rate: {learning_rate}\nBatch Size: {batch_size}\nNumber of Epochs: {num_epochs}'
-    report += f'\nMapping: {[f'- {l}: {l_int}' for l, l_int in label_mapping.items()]}'
+    report += f'\nMapping: {label_mapping}'
 
     # Save the markdown report to a .md file
     with open(output_path, "w") as f:
