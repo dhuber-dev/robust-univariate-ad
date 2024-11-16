@@ -41,7 +41,32 @@ def preprocess_time_series_data(df):
     return wide_df
 
 
-def main(features, labels, input_type):
+def markdown_report(class_report):
+    # Initialize markdown table
+    markdown_report = "## Classification Report\n\n"
+    markdown_report += "| Class | Precision | Recall | F1-Score | Support |\n"
+    markdown_report += "|-------|-----------|--------|----------|---------|\n"
+
+    # Add metrics for each class
+    for label, metrics in class_report.items():
+        if label not in ['accuracy', 'macro avg', 'weighted avg']:  # Ignore averages
+            markdown_report += f"| {label} | {metrics['precision']:.4f} | {metrics['recall']:.4f} | {metrics['f1-score']:.4f} | {metrics['support']:.0f} |\n"
+
+    # Add accuracy row
+    accuracy = class_report['accuracy']
+    markdown_report += f"| Accuracy | - | - | {accuracy:.4f} | {metrics['support']:.0f} |\n"
+
+    # Add macro and weighted averages
+    for avg_type in ['macro avg', 'weighted avg']:
+        metrics = class_report[avg_type]
+        markdown_report += f"| {avg_type.title()} | {metrics['precision']:.4f} | {metrics['recall']:.4f} | {metrics['f1-score']:.4f} | {metrics['support']:.0f} |\n"
+
+
+
+    return markdown_report
+
+
+def main(features, labels, input_type, output_path):
     # Load data
     data = pd.read_csv(features, index_col=0)
     labels = pd.read_csv(labels, index_col=0)
@@ -66,8 +91,15 @@ def main(features, labels, input_type):
     X_test = scaler.transform(X_test)
 
     y_pred = evaluate_FFModel(X_train, y_train, X_test, y_test)
-    class_report = classification_report(y_test, y_pred, zero_division=0)
-    print(class_report)
+
+    print(classification_report(y_test, y_pred, zero_division=0))
+    class_report = classification_report(y_test, y_pred, zero_division=0, output_dict=True)
+
+    class_report_md = markdown_report(class_report)
+
+    # Save the markdown report to a .md file
+    with open(output_path, "w") as f:
+        f.write(class_report_md)
 
 
 
@@ -86,10 +118,14 @@ if __name__ == '__main__':
                         required=True,
                         choices=["features", "time-series"],
                         help="Type of input data ('features' or 'time-series').")
+    parser.add_argument("--output", "-o",
+                        type=str,
+                        required=True,
+                        help="Output file for saving the classification report.")
 
     args = parser.parse_args()
 
 
-    main(args.features, args.labels, args.input)
+    main(args.features, args.labels, args.input, args.output)
 
 
