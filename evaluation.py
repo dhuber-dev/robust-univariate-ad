@@ -67,73 +67,158 @@ def markdown_report(class_report):
     return markdown_report
 
 
-def evaluate_model(model, X_train, y_train, X_test, y_test, hyperparameters):
-    learning_rate, batch_size, num_epochs = hyperparameters
+def shape_data_to_model(model, features, labels, batch_size, scaling):
+    # Split & scale
+    X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.2, random_state=42)
+    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
 
-    ## To tensor
+    if scaling:
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_val = scaler.transform(X_val)
+        X_test = scaler.transform(X_test)
+    else:
+        X_train = X_train.to_numpy()
+        X_val = X_val.to_numpy()
+        X_test = X_test.to_numpy()
+
+    # Convert data to tensors
     X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
     y_train_tensor = torch.tensor(y_train, dtype=torch.long)
+    X_val_tensor = torch.tensor(X_val, dtype=torch.float32)
+    y_val_tensor = torch.tensor(y_val, dtype=torch.long)
     X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
     y_test_tensor = torch.tensor(y_test, dtype=torch.long)
 
-    if isinstance(model, TimeSeriesCNN):
-        X_train_tensor, X_test_tensor = X_train_tensor.unsqueeze(1), X_test_tensor.unsqueeze(1)  # Add 1D dimension for CNN
+    if model=='cnn':
+        # Add 1D dimension for CNN
+        X_train_tensor = X_train_tensor.unsqueeze(1)
+        X_val_tensor = X_val_tensor.unsqueeze(1)
+        X_test_tensor = X_test_tensor.unsqueeze(1)
 
+    # Create datasets and loaders
     train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
+    val_dataset = TensorDataset(X_val_tensor, y_val_tensor)
     test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-    # Model
+    return train_loader, val_loader, test_loader
+
+
+def evaluate_model(model, data_loaders, hyperparameters, early_stopping_patience=10):
+    learning_rate, batch_size, num_epochs = hyperparameters
+    train_loader, val_loader, test_loader = data_loaders
+
+    # Set up model, loss function, and optimizer
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    loss_evolution = {}
+    loss_evolution = {
+            'epoch': list(),
+            'train_loss': list(),
+            'val_loss': list(),
+            'train_accuracy': list(),
+            'val_accuracy': list()
+        }
 
-    # Training loop
+    # Early stopping variables
+    best_val_loss = float('inf')
+    patience_counter = 0
+    best_model_state = None
+
+    # Training loop with validation and early stopping
     for epoch in range(num_epochs):
         model.train()
         train_loss = 0.0
         correct = 0
         total = 0
 
-        for i, (X_batch, y_batch) in enumerate(train_loader):
+        for X_batch, y_batch in train_loader:
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
-            ## Forward Pass
+            # Forward pass
             outputs = model(X_batch)
             loss = criterion(outputs, y_batch)
 
-            ## Backward Pass
+            # Backward pass and optimization
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            # Accumulate loss and correct predictions
+            # Accumulate training loss and accuracy
             train_loss += loss.item() * X_batch.size(0)
             _, predicted = torch.max(outputs, 1)
             correct += (predicted == y_batch).sum().item()
             total += y_batch.size(0)
 
-        # Compute average loss and accuracy
-        epoch_loss = train_loss / len(train_loader.dataset)
-        epoch_acc = correct / total
+        # Compute average training loss and accuracy
+        epoch_train_loss = train_loss / len(train_loader.dataset)
+        epoch_train_acc = correct / total
 
-        print(f'epoch {epoch+1}/{num_epochs}, loss {epoch_loss:.4f}, accuracy {epoch_acc:.4f}')
-        loss_evolution[epoch+1] = epoch_loss
+        # Validation phase
+        model.eval()
+        val_loss = 0.0
+        correct = 0
+        total = 0
 
-    # Test the model
+        with torch.no_grad():
+            for X_batch, y_batch in val_loader:
+                X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+                outputs = model(X_batch)
+                loss = criterion(outputs, y_batch)
+                val_loss += loss.item() * X_batch.size(0)
+
+                _, predicted = torch.max(outputs, 1)
+                correct += (predicted == y_batch).sum().item()
+                total += y_batch.size(0)
+
+        # Compute average validation loss and accuracy
+        epoch_val_loss = val_loss / len(val_loader.dataset)
+        epoch_val_acc = correct / total
+
+        # Print epoch statistics
+        print(
+            f'Epoch {epoch + 1}/{num_epochs}, '
+            f'Train Loss: {epoch_train_loss:.4f}, Train Acc: {epoch_train_acc:.4f}, '
+            f'Val Loss: {epoch_val_loss:.4f}, Val Acc: {epoch_val_acc:.4f}'
+        )
+
+        # Record loss evolution
+        loss_evolution['epoch'].append(epoch + 1)
+        loss_evolution['train_loss'].append(epoch_train_loss)
+        loss_evolution['val_loss'].append(epoch_val_loss)
+        loss_evolution['train_accuracy'].append(epoch_train_acc)
+        loss_evolution['val_accuracy'].append(epoch_val_acc)
+
+        # Early stopping check
+        if epoch_val_loss < best_val_loss:
+            best_val_loss = epoch_val_loss
+            patience_counter = 0
+            best_model_state = model.state_dict()
+        else:
+            patience_counter += 1
+
+        if patience_counter >= early_stopping_patience:
+            print(f'Early stopping at epoch {epoch + 1}')
+            break
+
+    # Load the best model state
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+
+    # Testing phase
     model.eval()
     test_loss = 0.0
     correct = 0
     total = 0
     num_elements = len(test_loader.dataset)
-    num_batches = len(test_loader)
-    batch_size = test_loader.batch_size
     y_pred = torch.zeros(num_elements, dtype=torch.long)
+
     with torch.no_grad():
         for i, (X_batch, y_batch) in enumerate(test_loader):
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
@@ -142,12 +227,13 @@ def evaluate_model(model, X_train, y_train, X_test, y_test, hyperparameters):
             test_loss += loss.item() * X_batch.size(0)
 
             _, predicted = torch.max(outputs, 1)
-            start = i * batch_size
+            start = i * test_loader.batch_size
             end = start + X_batch.size(0)
             y_pred[start:end] = predicted.cpu()
             correct += (predicted == y_batch).sum().item()
             total += y_batch.size(0)
 
+    # Compute average test loss and accuracy
     test_loss /= len(test_loader.dataset)
     test_accuracy = correct / total
     print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
@@ -170,7 +256,6 @@ def main(features, labels, input_type, output_path, hyperparameters, mapping, sc
         features = features.loc[:, features.nunique() > 1] # Remove columns with just one value
         print(len(features.columns), 'features used.')
         features = features.clip(lower=-1e6, upper=1e6)
-
     else:
         raise ValueError
 
@@ -183,29 +268,24 @@ def main(features, labels, input_type, output_path, hyperparameters, mapping, sc
     labels = label_encoder.fit_transform(labels)
     label_mapping = dict(zip(label_encoder.transform(label_encoder.classes_), label_encoder.classes_))
 
-    ## Split & scale
-    X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.2, random_state=42)
+    _, batch_size, _ = hyperparameters
+    data_loaders = shape_data_to_model(model, features, labels, batch_size, scaling)
 
-    if scaling:
-        scaler = StandardScaler()
-        X_train = scaler.fit_transform(X_train)
-        X_test = scaler.transform(X_test)
-    else:
-        X_train = X_train.to_numpy()
-        X_test = X_test.to_numpy()
-
+    # Select Model
     if model == 'ff':
-        model = FFModel(input_shape=torch.tensor(X_train, dtype=torch.float32).shape, num_classes=len(set(np.concatenate((y_train, y_test)))))
+        model = FFModel(input_shape=(data_loaders[0].batch_size, features.shape[1]),
+                        num_classes=label_encoder.classes_.size)
     elif model == 'cnn':
-        model = TimeSeriesCNN(num_classes=len(set(np.concatenate((y_train, y_test)))))
+        model = TimeSeriesCNN(num_classes=label_encoder.classes_.size)
 
-    y_pred, loss_evaluation = evaluate_model(model, X_train, y_train, X_test, y_test, hyperparameters)
+    y_pred, loss_evaluation = evaluate_model(model, data_loaders, hyperparameters)
 
-    pd.Series(loss_evaluation).to_csv(output_path.replace('.md', '_loss_evaluation.csv'))
+    pd.DataFrame(loss_evaluation).to_csv(output_path.replace('.md', '_loss_evaluation.csv'))
 
     # Translate labels back to interpretable strings
-    y_test = [label_mapping[x] for x in y_test]  # test labels in string form
-    y_pred = [label_mapping[int(x)] for x in y_pred]  # predicted labels in string form
+    _, _, test_loader = data_loaders
+    y_test = label_encoder.inverse_transform(test_loader.dataset.tensors[1])  # test labels in string form
+    y_pred = label_encoder.inverse_transform(y_pred)  # predicted labels in string form
 
     def get_report(file_name):
         print(classification_report(y_test, y_pred, zero_division=0))
