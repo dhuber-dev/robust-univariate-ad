@@ -1,14 +1,17 @@
 # main_script.py
 import argparse
 import os
+import torch.nn as nn
+import numpy as np
 import yaml
 import pandas as pd
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
+import torch
+from CNN import TimeSeriesCNN
+from FeedForward import FFModel
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from FeedForward import evaluate_FFModel
-from BidirectionalLSTM import BidirectionalLSTM
-from XGBoost import XGBoostModel
+from torch.utils.data import TensorDataset, DataLoader
 
 
 def read_yaml(path):
@@ -64,7 +67,95 @@ def markdown_report(class_report):
     return markdown_report
 
 
-def main(features, labels, input_type, output_path, hyperparameters, mapping):
+def evaluate_model(model, X_train, y_train, X_test, y_test, hyperparameters):
+    learning_rate, batch_size, num_epochs = hyperparameters
+
+    ## To tensor
+    X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+    y_train_tensor = torch.tensor(y_train, dtype=torch.long)
+    X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
+    y_test_tensor = torch.tensor(y_test, dtype=torch.long)
+
+    if isinstance(model, TimeSeriesCNN):
+        X_train_tensor, X_test_tensor = X_train_tensor.unsqueeze(1), X_test_tensor.unsqueeze(1)  # Add 1D dimension for CNN
+
+    train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
+    test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+    # Model
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+    loss_evolution = {}
+
+    # Training loop
+    for epoch in range(num_epochs):
+        model.train()
+        train_loss = 0.0
+        correct = 0
+        total = 0
+
+        for i, (X_batch, y_batch) in enumerate(train_loader):
+            X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+            ## Forward Pass
+            outputs = model(X_batch)
+            loss = criterion(outputs, y_batch)
+
+            ## Backward Pass
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            # Accumulate loss and correct predictions
+            train_loss += loss.item() * X_batch.size(0)
+            _, predicted = torch.max(outputs, 1)
+            correct += (predicted == y_batch).sum().item()
+            total += y_batch.size(0)
+
+        # Compute average loss and accuracy
+        epoch_loss = train_loss / len(train_loader.dataset)
+        epoch_acc = correct / total
+
+        print(f'epoch {epoch+1}/{num_epochs}, loss {epoch_loss:.4f}, accuracy {epoch_acc:.4f}')
+        loss_evolution[epoch+1] = epoch_loss
+
+    # Test the model
+    model.eval()
+    test_loss = 0.0
+    correct = 0
+    total = 0
+    num_elements = len(test_loader.dataset)
+    num_batches = len(test_loader)
+    batch_size = test_loader.batch_size
+    y_pred = torch.zeros(num_elements, dtype=torch.long)
+    with torch.no_grad():
+        for i, (X_batch, y_batch) in enumerate(test_loader):
+            X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+            outputs = model(X_batch)
+            loss = criterion(outputs, y_batch)
+            test_loss += loss.item() * X_batch.size(0)
+
+            _, predicted = torch.max(outputs, 1)
+            start = i * batch_size
+            end = start + X_batch.size(0)
+            y_pred[start:end] = predicted.cpu()
+            correct += (predicted == y_batch).sum().item()
+            total += y_batch.size(0)
+
+    test_loss /= len(test_loader.dataset)
+    test_accuracy = correct / total
+    print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
+
+    return y_pred, loss_evolution
+
+
+def main(features, labels, input_type, output_path, hyperparameters, mapping, scaling, model):
     # Load data
     data = pd.read_csv(features, index_col=0)
     labels = pd.read_csv(labels, index_col=0)
@@ -86,19 +177,30 @@ def main(features, labels, input_type, output_path, hyperparameters, mapping):
     ## Labels
     if mapping:
         # Use algorithm family labels instead of anomaly kinds
-        output_path = output_path.replace('.md', '_premapping.md')
         labels = labels.map(read_yaml('best_performer_mapper.yaml'))
+
     label_encoder = LabelEncoder()
     labels = label_encoder.fit_transform(labels)
     label_mapping = dict(zip(label_encoder.transform(label_encoder.classes_), label_encoder.classes_))
 
     ## Split & scale
     X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.2, random_state=42)
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
 
-    y_pred, loss_evaluation = evaluate_FFModel(X_train, y_train, X_test, y_test, hyperparameters)
+    if scaling:
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_test = scaler.transform(X_test)
+    else:
+        X_train = X_train.to_numpy()
+        X_test = X_test.to_numpy()
+
+    if model == 'ff':
+        model = FFModel(input_shape=torch.tensor(X_train, dtype=torch.float32).shape, num_classes=len(set(np.concatenate((y_train, y_test)))))
+    elif model == 'cnn':
+        model = TimeSeriesCNN(num_classes=len(set(np.concatenate((y_train, y_test)))))
+
+    y_pred, loss_evaluation = evaluate_model(model, X_train, y_train, X_test, y_test, hyperparameters)
+
     pd.Series(loss_evaluation).to_csv(output_path.replace('.md', '_loss_evaluation.csv'))
 
     # Translate labels back to interpretable strings
@@ -138,9 +240,14 @@ if __name__ == '__main__':
                         type=str,
                         help="Path to the label CSV file.")
     parser.add_argument("--features", "-f",
-                        default='exploded_self_generated_df.csv',
                         type=str,
                         help="Path to the feature data CSV file.")
+
+    parser.add_argument("--model", "-m",
+                        type=str,
+                        required=True,
+                        choices=["ff", "cnn"],
+                        help="Type of input data ('features' or 'time-series').")
     parser.add_argument("--input", "-i",
                         type=str,
                         required=True,
@@ -148,10 +255,13 @@ if __name__ == '__main__':
                         help="Type of input data ('features' or 'time-series').")
     parser.add_argument('--pre-mapping', dest='mapping', action='store_true')
     parser.add_argument('--post-mapping', dest='mapping', action='store_false')
+    parser.add_argument('--scaling', dest='scaling', action='store_true')
+    parser.add_argument('--no-scaling', dest='scaling', action='store_false')
+
     parser.add_argument("--output", "-o",
                         type=str,
-                        required=True,
-                        help="Output file for saving the classification report.")
+                        default='',
+                        help="Output file for saving the classification report and data (will be extended with test specifications).")
 
     # Hyperparameters
     parser.add_argument("--learning-rate",
@@ -166,4 +276,12 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    main(args.features, args.labels, args.input, args.output, (args.learning_rate, args.batch_size, args.num_epochs), args.mapping)
+    # Add text specifications to output file names
+    mapping_label = 'pre-mapping' if args.mapping else 'post-mapping'
+    scaling_label = 'scaled' if args.scaling else 'no-scaling'
+    output_file_name = '_'.join([args.output, args.model, args.input, mapping_label, scaling_label]) + '.md'
+
+    if not args.features:  # No feature source was provided
+        args.features = 'exploded_self_generated_df.csv' if args.input == 'time-series' else 'features_new.csv'
+
+    main(args.features, args.labels, args.input, output_file_name, (args.learning_rate, args.batch_size, args.num_epochs), args.mapping, args.scaling, args.model)
