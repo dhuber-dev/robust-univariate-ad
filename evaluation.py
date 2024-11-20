@@ -1,11 +1,13 @@
 # main_script.py
 import argparse
 import os
+from pathlib import Path
+
 import torch.nn as nn
 import numpy as np
 import yaml
 import pandas as pd
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
 import torch
 from CNN import TimeSeriesCNN
@@ -280,14 +282,16 @@ def main(features, labels, input_type, output_path, hyperparameters, mapping, sc
 
     y_pred, loss_evaluation = evaluate_model(model, data_loaders, hyperparameters)
 
-    pd.DataFrame(loss_evaluation).to_csv(output_path.replace('.md', '_loss_evaluation.csv'))
+    loss_folder = Path('loss_evaluations/')
+    (output_path.parent / loss_folder).mkdir(exist_ok=True)
+    pd.DataFrame(loss_evaluation).to_csv(output_path.parent / loss_folder / Path(output_path.name.replace('.md', '_loss_evaluation.csv')))
 
     # Translate labels back to interpretable strings
     _, _, test_loader = data_loaders
     y_test = label_encoder.inverse_transform(test_loader.dataset.tensors[1])  # test labels in string form
     y_pred = label_encoder.inverse_transform(y_pred)  # predicted labels in string form
 
-    def get_report(file_name):
+    def get_report(report_directory):
         print(classification_report(y_test, y_pred, zero_division=0))
         class_report = classification_report(y_test, y_pred, zero_division=0, output_dict=True)
 
@@ -298,19 +302,27 @@ def main(features, labels, input_type, output_path, hyperparameters, mapping, sc
         report += f'\nMapping: {label_mapping}'
 
         # Save the markdown report to a .md file
-        with open(file_name, "w") as f:
+        with open(report_directory, "w") as f:
             f.write(report)
 
-        print(f'Report written to {file_name}')
+        print(f'Report written to {report_directory.name}')
 
-    get_report(output_path.replace('.md', '_anomaly_type_post_mapping.md'))
-    if not mapping:
+        # -- Confusion Matrix --
+        confusion_matrix_folder = Path('confusion_matrices/')
+        (report_directory.parent / confusion_matrix_folder).mkdir(exist_ok=True)
+        confusion_matrix = pd.crosstab(pd.Series(y_test, name='test'), pd.Series(y_pred, name='predicted'))
+        confusion_matrix.to_csv(report_directory.parent / confusion_matrix_folder / Path(report_directory.name.replace('.md', '_confusion_matrix.csv')))
+
+    if mapping:
+        get_report(output_path.with_name(output_path.name.replace('.md', '_algo_family.md')))
+    else:
+        get_report(output_path.with_name(output_path.name.replace('.md', '_anomaly_kind.md')))  # get report before translating to algo family
         # Translate anomaly kind labels to algorithm family labels
         mapper = read_yaml('best_performer_mapper.yaml')
         y_test = [mapper[x] for x in y_test]  # test labels in string form
         y_pred = [mapper[x] for x in y_pred]  # predicted labels in string form
 
-        get_report(output_path.replace('.md', '_algo_family_post_mapping.md'))
+        get_report(output_path.with_name(output_path.name.replace('.md', '_algo_family.md')))  # save another report with the final class labels
 
 
 if __name__ == '__main__':
@@ -341,7 +353,7 @@ if __name__ == '__main__':
     parser.add_argument("--output", "-o",
                         type=str,
                         default='',
-                        help="Output file for saving the classification report and data (will be extended with test specifications).")
+                        help="Output folder for saving the classification report and data (will be extended with test specifications).")
 
     # Hyperparameters
     parser.add_argument("--learning-rate",
@@ -358,10 +370,10 @@ if __name__ == '__main__':
 
     # Add text specifications to output file names
     mapping_label = 'pre-mapping' if args.mapping else 'post-mapping'
-    scaling_label = 'scaled' if args.scaling else 'no-scaling'
-    output_file_name = '_'.join([args.output, args.model, args.input, mapping_label, scaling_label]) + '.md'
+    scaling_label = 'scaling' if args.scaling else 'no-scaling'
+    output_file_name = '_'.join([args.model, args.input, mapping_label, scaling_label]) + '.md'
 
     if not args.features:  # No feature source was provided
         args.features = 'exploded_self_generated_df.csv' if args.input == 'time-series' else 'features_new.csv'
 
-    main(args.features, args.labels, args.input, output_file_name, (args.learning_rate, args.batch_size, args.num_epochs), args.mapping, args.scaling, args.model)
+    main(args.features, args.labels, args.input, Path(args.output + output_file_name), (args.learning_rate, args.batch_size, args.num_epochs), args.mapping, args.scaling, args.model)
