@@ -15,14 +15,10 @@ class FFModel(nn.Module):
         self.num_classes = num_classes
 
         # Define the architecture
-        self.flatten = nn.Flatten()
         self.fc1 = nn.Linear(input_shape[1], 512)
-        self.dropout1 = nn.Dropout(0.4)
-        self.fc2 = nn.Linear(512, 256)
-        self.dropout2 = nn.Dropout(0.3)
-        self.fc3 = nn.Linear(256, 128)
-        self.dropout3 = nn.Dropout(0.3)
-        self.fc4 = nn.Linear(128, num_classes)
+        self.ln = nn.LayerNorm(512, elementwise_affine=False)
+        self.fc2 = nn.Linear(512, 128)
+        self.fc3 = nn.Linear(128, num_classes)
 
         # Activation function
         self.relu = nn.ReLU()
@@ -37,10 +33,7 @@ class FFModel(nn.Module):
             Output tensor of shape (batch_size, num_classes).
         """
         x = self.relu(self.fc1(x))
-        x = self.dropout1(x)
+        x = self.ln(x)
         x = self.relu(self.fc2(x))
-        x = self.dropout2(x)
-        x = self.relu(self.fc3(x))
-        x = self.dropout3(x)
-        x = self.fc4(x)
+        x = self.fc3(x)
         return x
