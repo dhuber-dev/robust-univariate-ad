@@ -1,0 +1,10 @@
+test,amplitude,extremum,frequency,mean,pattern,pattern-shift,platform,trend,variance
+amplitude,49,10,5,3,24,12,14,1,17
+extremum,9,148,0,1,14,2,3,1,19
+frequency,31,0,13,2,16,16,7,2,5
+mean,26,3,6,48,4,2,8,5,98
+pattern,45,3,4,1,26,12,7,0,10
+pattern-shift,31,0,19,1,25,16,15,0,9
+platform,34,17,16,6,19,8,86,5,15
+trend,2,1,4,13,1,1,2,69,62
+variance,37,8,4,5,20,10,2,2,115
