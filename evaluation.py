@@ -10,6 +10,8 @@ import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
 import torch
+from tsfresh import select_features
+
 from CNN import TimeSeriesCNN
 from FeedForward import FFModel
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -243,7 +245,7 @@ def evaluate_model(model, data_loaders, hyperparameters, early_stopping_patience
     return y_pred, loss_evolution
 
 
-def main(features, labels, input_type, output_path, hyperparameters, mapping, scaling, model):
+def main(features, labels, input_type, output_path, hyperparameters, mapping, scaling, model, feature_selection):
     # Load data
     data = pd.read_csv(features, index_col=0)
     labels = pd.read_csv(labels, index_col=0)
@@ -255,9 +257,13 @@ def main(features, labels, input_type, output_path, hyperparameters, mapping, sc
         features = preprocess_time_series_data(data)
     elif input_type == 'features':
         features = data.dropna(axis=1)
-        features = features.loc[:, features.nunique() > 1] # Remove columns with just one value
-        print(len(features.columns), 'features used.')
+        features = features.loc[:, features.nunique() > 1]  # Remove columns with just one value
         features = features.clip(lower=-1e6, upper=1e6)
+
+        if feature_selection:
+            features = select_features(features, labels)
+
+        print(len(features.columns), 'features used.')
     else:
         raise ValueError
 
@@ -349,6 +355,7 @@ if __name__ == '__main__':
     parser.add_argument('--post-mapping', dest='mapping', action='store_false')
     parser.add_argument('--scaling', dest='scaling', action='store_true')
     parser.add_argument('--no-scaling', dest='scaling', action='store_false')
+    parser.add_argument('--feature-selection', dest='feature_selection', action='store_true')
 
     parser.add_argument("--output", "-o",
                         type=str,
@@ -376,4 +383,4 @@ if __name__ == '__main__':
     if not args.features:  # No feature source was provided
         args.features = 'exploded_self_generated_df.csv' if args.input == 'time-series' else 'features_new.csv'
 
-    main(args.features, args.labels, args.input, Path(args.output + output_file_name), (args.learning_rate, args.batch_size, args.num_epochs), args.mapping, args.scaling, args.model)
+    main(args.features, args.labels, args.input, Path(args.output + output_file_name), (args.learning_rate, args.batch_size, args.num_epochs), args.mapping, args.scaling, args.model, args.feature_selection)
