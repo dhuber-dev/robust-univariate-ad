@@ -56,7 +56,7 @@ def hyperparameter_tuning(features, labels, learning_rate, batch_size):
     output_folder = Path('results/hyperparameter_tuning/')
     output_folder.mkdir(exist_ok=True)
 
-    base = f'lr_{str(learning_rate).replace('.', 'p')}_bs_{batch_size}'
+    base = f'lr_{str(learning_rate).replace(".", "p")}_bs_{batch_size}'
     get_report(output_folder / Path(f'{base}.md'), y_test, y_pred)
     pd.DataFrame(loss_evaluation).to_csv(output_folder / Path(f'{base}_loss_evaluation.csv'))
     get_confusion_matrix(output_folder / Path(f'{base}_confusion_matrix.csv'), y_test, y_pred)
