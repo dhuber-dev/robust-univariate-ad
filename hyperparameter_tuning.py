@@ -84,7 +84,7 @@ if __name__ == '__main__':
 
     # Hyperparameter space
     hyperparameter_space = {
-        "learning_rate": [0.0001, 0.001, 0.01, 0.1],
+        "learning_rate": [0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1],
         "batch_size": [pow(2, x) for x in range(1, 11)],
     }
 
