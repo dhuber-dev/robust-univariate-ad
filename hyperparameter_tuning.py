@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import LabelEncoder
 from tsfresh import select_features
-
+from itertools import product
 from FeedForward import FFModel
 from evaluation import main, read_yaml, shape_data_to_model, evaluate_model, markdown_report
 
@@ -50,7 +50,7 @@ def hyperparameter_tuning(features, labels, learning_rate, batch_size):
     model = FFModel(input_shape=(data_loaders[0].batch_size, features.shape[1]),
                     num_classes=label_encoder.classes_.size)
 
-    hyperparameters = (learning_rate, batch_size, 200)
+    hyperparameters = (learning_rate, batch_size, 100)
     y_pred, loss_evaluation = evaluate_model(model, data_loaders, hyperparameters)
 
     output_folder = Path('results/hyperparameter_tuning/')
@@ -78,7 +78,6 @@ if __name__ == '__main__':
     parser.add_argument("--lr",
                         default=0.001,
                         type=float)
-    parser.add_argument('--learning-rate', dest='loop_learning_rate', action='store_true')
 
     args = parser.parse_args()
 
@@ -88,9 +87,9 @@ if __name__ == '__main__':
         "batch_size": [pow(2, x) for x in range(1, 11)],
     }
 
-    if args.loop_learning_rate:
-        for lr in hyperparameter_space['learning_rate']:
-            hyperparameter_tuning(args.features, args.labels, lr, args.bs)
-    else:
-        for bs in hyperparameter_space['batch_size']:
-            hyperparameter_tuning(args.features, args.labels, args.lr, bs)
+    all_combinations = list(product(hyperparameter_space['learning_rate'], hyperparameter_space['batch_size']))
+
+    for loc in all_combinations:
+        lr, bs = loc
+        hyperparameter_tuning(args.features, args.labels, learning_rate=lr, batch_size=bs)
+
