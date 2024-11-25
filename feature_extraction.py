@@ -15,8 +15,10 @@ Date: 2024-09-04
 """
 import ast
 import csv
+import os
 from pathlib import Path
 
+import tsfresh.feature_extraction.settings
 import yaml
 import pandas as pd
 import math
@@ -175,19 +177,24 @@ def extract_features_with_dask(df_feature_extraction: pd.DataFrame, n_jobs: int,
     # Convert the pandas DataFrame to a Dask DataFrame
     ddf = dd.from_pandas(df_feature_extraction, npartitions=n_jobs)
 
+    # Only use relevant features
+    features_old = pd.read_csv('features_new.csv', index_col=0)
+    fc_parameters = tsfresh.feature_extraction.settings.from_columns(features_old)
+
     # Use Dask's parallel computation capabilities
     with TqdmCallback(desc="Extracting features with Dask"):
         extracted_features = extract_features(ddf.compute(),
                                               column_id='id',
                                               column_sort='time_idx',
-                                              n_jobs=n_jobs)
+                                              n_jobs=n_jobs,
+                                              default_fc_parameters=fc_parameters)
 
     return extracted_features
 
 
 def explode_time_series(df2explode):
     df2explode['time_idx'] = df2explode.data.apply(lambda x: x['timestamp'].tolist())
-    df2explode['value'] = df2explode.data.apply(lambda x: x['value-0'].tolist())
+    df2explode['value'] = df2explode.data.apply(lambda x: x['value'].tolist())
     df_exploded = df2explode.loc[:, ('time_idx', 'value')]
     return df_exploded.explode(list(df_exploded.columns)).reset_index(names='id').apply(pd.to_numeric)
 
@@ -206,7 +213,7 @@ def add_anomaly_kinds(config_path):
     return anomalies
 
 
-def preprocess_datasets(dataset_folder, config_path):
+def preprocess_gutentag(dataset_folder, config_path):
     loaded_data = load_data(dataset_folder)
     loaded_data['anomaly'] = add_anomaly_kinds(config_path)
     loaded_data['invalid_data'] = loaded_data['data'].apply(lambda x: x['value-0'].isna().any())
@@ -219,8 +226,26 @@ def preprocess_datasets(dataset_folder, config_path):
     return df4extraction
 
 
-def main(dataset_folder, config_path, n_jobs, limit_features, output_path):
-    pp_df = preprocess_datasets(dataset_folder, config_path)
+def preprocess_dataset(dataset_folder):
+    files_to_load = [dataset_folder + f for f in os.listdir(dataset_folder) if f.endswith("test.csv")]
+
+    tqdm.pandas(desc="Loading datasets")
+    time_series_df = pd.DataFrame({'path': files_to_load})
+    time_series_df['data'] = time_series_df.path.progress_apply(pd.read_csv)
+    time_series_df['invalid_data'] = time_series_df['data'].apply(lambda x: x['value'].isna().any())
+    if time_series_df['invalid_data'].any():
+        delete_instance = time_series_df['invalid_data'].value_counts()
+        print('instances deleted due to NaN:', f'{delete_instance[True]}/{delete_instance[False]}')
+    time_series_df.to_csv(f'datasets/loaded_{Path(dataset_folder).name}_df.csv')
+    loaded_data_clean = time_series_df.loc[~time_series_df.invalid_data]
+    df4extraction = explode_time_series(loaded_data_clean)
+    df4extraction.to_csv(f'datasets/exploded_{Path(dataset_folder).name}_df.csv')
+
+    return df4extraction
+
+
+def main(dataset_folder, config_path, n_jobs, limit_features, output_path, is_gutentag):
+    pp_df = preprocess_gutentag(dataset_folder, config_path) if is_gutentag else preprocess_dataset(dataset_folder)
     features = extract_features_with_dask(pp_df, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
     features.to_csv(output_path)
 
@@ -237,7 +262,8 @@ if __name__ == "__main__":
                         help="Only use predefined subset of features to boost extraction if resources limited.")
     parser.add_argument("--output-path", type=str, default='features/features.csv',
                         help="Path to save the extracted features CSV file.")
+    parser.add_argument('--GutenTAG', dest='is_gutentag', action='store_true')
 
     args = parser.parse_args()
 
-    main(args.dataset_folder, args.time_series_config, args.n_jobs, args.limit_features, args.output_path)
+    main(args.dataset_folder, args.time_series_config, args.n_jobs, args.limit_features, args.output_path, args.is_gutentag)
