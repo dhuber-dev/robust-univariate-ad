@@ -187,7 +187,7 @@ def extract_features_with_dask(df_feature_extraction: pd.DataFrame, n_jobs: int,
                                               column_id='id',
                                               column_sort='time_idx',
                                               n_jobs=n_jobs,
-                                              default_fc_parameters=fc_parameters)
+                                              default_fc_parameters=fc_parameters['value'])
 
     return extracted_features
 
