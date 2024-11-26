@@ -228,7 +228,7 @@ def preprocess_gutentag(dataset_folder, config_path):
     return df4extraction
 
 
-def preprocess_dataset(dataset_folder):
+def preprocess_dataset(dataset_folder, n_jobs):
     files_to_load = [dataset_folder + f for f in os.listdir(dataset_folder) if f.endswith("test.csv")]
 
     tqdm.pandas(desc="Loading datasets")
@@ -243,26 +243,28 @@ def preprocess_dataset(dataset_folder):
     df4extraction = explode_time_series(loaded_data_clean)
     df4extraction.to_csv(f'datasets/exploded_{Path(dataset_folder).name}_df.csv')
 
-    return df4extraction
-
-
-def main(dataset_folder, config_path, n_jobs, limit_features, output_path, is_gutentag):
-    pp_df = preprocess_gutentag(dataset_folder, config_path) if is_gutentag else preprocess_dataset(dataset_folder)
     print('id to int32')
-    pp_df['id'] = pp_df['id'].astype('int32')
+    df4extraction['id'] = df4extraction['id'].astype('int32')
     print('time_idx to int32')
-    pp_df['time_idx'] = pp_df['time_idx'].astype('int32')
+    df4extraction['time_idx'] = df4extraction['time_idx'].astype('int32')
     print('value to float32')
-    pp_df['value'] = pp_df['value'].astype('float32')
+    df4extraction['value'] = df4extraction['value'].astype('float32')
 
-    df_rolled = roll_time_series(pp_df,
+    df_rolled = roll_time_series(df4extraction,
                                  column_id='id',
                                  column_sort='time_idx',
                                  max_timeshift=1000,
                                  n_jobs=n_jobs,
                                  rolling_direction=1000)
+    df_rolled.to_csv(f'datasets/rolled_{Path(dataset_folder).name}_df.csv')
 
-    features = extract_features_with_dask(df_rolled, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
+    return df4extraction
+
+
+def main(dataset_folder, config_path, n_jobs, limit_features, output_path, is_gutentag):
+    pp_df = preprocess_gutentag(dataset_folder, config_path) if is_gutentag else preprocess_dataset(dataset_folder, n_jobs)
+
+    features = extract_features_with_dask(pp_df, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
     features.to_csv(output_path)
 
 
