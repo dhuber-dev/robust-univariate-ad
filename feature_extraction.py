@@ -196,7 +196,9 @@ def explode_time_series(df2explode):
     df2explode['time_idx'] = df2explode.data.apply(lambda x: x['timestamp'].tolist())
     df2explode['value'] = df2explode.data.apply(lambda x: x['value'].tolist())
     df_exploded = df2explode.loc[:, ('time_idx', 'value')]
-    return df_exploded.explode(list(df_exploded.columns)).reset_index(names='id').apply(pd.to_numeric)
+    df_exploded = df_exploded.explode(list(df_exploded.columns)).reset_index(names='id')
+    df_exploded['time_idx'] = df_exploded.groupby('id').cumcount()
+    return df_exploded.apply(pd.to_numeric)
 
 
 def read_yaml(path):
@@ -246,19 +248,21 @@ def preprocess_dataset(dataset_folder):
 
 def main(dataset_folder, config_path, n_jobs, limit_features, output_path, is_gutentag):
     pp_df = preprocess_gutentag(dataset_folder, config_path) if is_gutentag else preprocess_dataset(dataset_folder)
+    print('id to int32')
     pp_df['id'] = pp_df['id'].astype('int32')
+    print('time_idx to int32')
     pp_df['time_idx'] = pp_df['time_idx'].astype('int32')
+    print('value to float32')
     pp_df['value'] = pp_df['value'].astype('float32')
-    df_downsampled = pp_df.iloc[::2].reset_index(drop=True)
-    """
-    df_rolled = roll_time_series(df_downsampled,
+
+    df_rolled = roll_time_series(pp_df,
                                  column_id='id',
                                  column_sort='time_idx',
-                                 max_timeshift=5000,
+                                 max_timeshift=1000,
                                  n_jobs=n_jobs,
                                  rolling_direction=1000)
-                                 """
-    features = extract_features_with_dask(df_downsampled, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
+
+    features = extract_features_with_dask(df_rolled, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
     features.to_csv(output_path)
 
 
