@@ -249,13 +249,16 @@ def main(dataset_folder, config_path, n_jobs, limit_features, output_path, is_gu
     pp_df['id'] = pp_df['id'].astype('int32')
     pp_df['time_idx'] = pp_df['time_idx'].astype('int32')
     pp_df['value'] = pp_df['value'].astype('float32')
-    df_rolled = roll_time_series(pp_df,
+    df_downsampled = pp_df.iloc[::2].reset_index(drop=True)
+    """
+    df_rolled = roll_time_series(df_downsampled,
                                  column_id='id',
                                  column_sort='time_idx',
                                  max_timeshift=5000,
                                  n_jobs=n_jobs,
                                  rolling_direction=1000)
-    features = extract_features_with_dask(df_rolled, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
+                                 """
+    features = extract_features_with_dask(df_downsampled, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
     features.to_csv(output_path)
 
 
