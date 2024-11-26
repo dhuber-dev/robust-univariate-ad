@@ -26,7 +26,7 @@ from tqdm import tqdm
 import argparse
 import dask.dataframe as dd
 from tsfresh import extract_features
-from tsfresh.utilities.dataframe_functions import impute
+from tsfresh.utilities.dataframe_functions import impute, roll_time_series
 from tsfresh.feature_extraction import ComprehensiveFCParameters, MinimalFCParameters
 from tqdm.dask import TqdmCallback
 
@@ -246,7 +246,12 @@ def preprocess_dataset(dataset_folder):
 
 def main(dataset_folder, config_path, n_jobs, limit_features, output_path, is_gutentag):
     pp_df = preprocess_gutentag(dataset_folder, config_path) if is_gutentag else preprocess_dataset(dataset_folder)
-    features = extract_features_with_dask(pp_df, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
+    df_rolled = roll_time_series(pp_df,
+                                 column_id='id',
+                                 column_sort='time_idx',
+                                 max_timeshift=5000,
+                                 n_jobs=n_jobs)
+    features = extract_features_with_dask(df_rolled, n_jobs=n_jobs, limit_features=limit_features, output_path=output_path)
     features.to_csv(output_path)
 
 
