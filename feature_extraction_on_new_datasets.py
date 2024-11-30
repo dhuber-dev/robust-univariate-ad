@@ -44,13 +44,13 @@ def main(dataset):
     df = pd.DataFrame({'path': files_to_load})
     df['data'] = df.path.progress_apply(pd.read_csv)
 
-    model = FFModel(input_shape=(32, 783),
-                    num_classes=4)
-    model.load_state_dict(torch.load("ff_model.pth"))
-    model.eval()
     features_old = pd.read_csv('current_features.csv', index_col=0)
     fc_parameters = tsfresh.feature_extraction.settings.from_columns(features_old)
 
+    model = FFModel(input_shape=(32, features_old.shape[1]),
+                    num_classes=4)
+    model.load_state_dict(torch.load("ff_model.pth"))
+    model.eval()
     results = []
 
     for d in df.data:
