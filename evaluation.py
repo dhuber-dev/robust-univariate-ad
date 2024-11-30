@@ -256,8 +256,8 @@ def main(features, labels, input_type, output_path, hyperparameters, mapping, sc
     if input_type == 'time-series':
         features = preprocess_time_series_data(data)
     elif input_type == 'features':
-        features = features.filter(like='value', axis=1)  # only use features of value column
-        features = data.dropna(axis=1)
+        features = data.filter(like='value', axis=1)  # only use features of value column
+        features = features.dropna(axis=1)
         features = features.loc[:, features.nunique() > 1]  # Remove columns with just one value
         features = features.clip(lower=-1e6, upper=1e6)
 
