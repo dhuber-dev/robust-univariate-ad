@@ -80,7 +80,7 @@ def main(dataset):
             algo_families.append(algo_family)
         results.append(algo_families)
     df['results'] = results
-    df.to_csv('results_algo_families.csv')
+    df.to_csv(f'results_algo_families_{dataset}.csv')
 
 
 
