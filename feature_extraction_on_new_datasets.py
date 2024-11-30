@@ -48,7 +48,7 @@ def main(dataset):
                     num_classes=4)
     model.load_state_dict(torch.load("ff_model.pth"))
     model.eval()
-    features_old = pd.read_csv('features_new.csv', index_col=0)
+    features_old = pd.read_csv('current_features.csv', index_col=0)
     fc_parameters = tsfresh.feature_extraction.settings.from_columns(features_old)
 
     results = []

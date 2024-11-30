@@ -262,6 +262,7 @@ def main(features, labels, input_type, output_path, hyperparameters, mapping, sc
 
         if feature_selection:
             features = select_features(features, labels)
+            features.to_csv('current_features.csv')
 
         print(len(features.columns), 'features used.')
     else:
