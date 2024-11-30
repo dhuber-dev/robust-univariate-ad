@@ -241,7 +241,7 @@ def evaluate_model(model, data_loaders, hyperparameters, early_stopping_patience
     test_loss /= len(test_loader.dataset)
     test_accuracy = correct / total
     print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
-
+    torch.save(model.state_dict(), "ff_model.pth")
     return y_pred, loss_evolution
 
 
